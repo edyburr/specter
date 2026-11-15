@@ -1,0 +1,391 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SP3-CTR Wireframe</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: drafting sheet. Model viewport fills the sheet; a title-block column (right on desktop, below on phone) holds state controls, parts list and dimensions. */
+:root{
+  --bg:#e9eef2; --sheet:#f6f8fa; --ink:#14263a; --muted:#5b6b7c; --rule:#c3ced8;
+  --line:#1d3a5c; --dim:#a9b7c4; --fill:#f1f5f8; --dot:#55708c; --accent:#c8501a;
+  --display:"Chakra Petch","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1b29; --sheet:#152434; --ink:#dce8f2; --muted:#8da2b6; --rule:#2b4058;
+  --line:#a9d4ee; --dim:#3a5670; --fill:#132131; --dot:#6f9bbb; --accent:#ff9a4d; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f1b29; --sheet:#152434; --ink:#dce8f2; --muted:#8da2b6; --rule:#2b4058;
+  --line:#a9d4ee; --dim:#3a5670; --fill:#132131; --dot:#6f9bbb; --accent:#ff9a4d; color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+.app{display:flex;height:100%;min-height:0}
+.view{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden}
+.view canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.view canvas:active{cursor:grabbing}
+.hud{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
+.hud button{pointer-events:auto}
+.fail{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.block{flex:0 0 340px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;background:var(--sheet);border-left:1px solid var(--rule);
+  padding-block:18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:.02em;margin:0;line-height:1.1}
+.sub{margin:4px 0 0;color:var(--muted);font-size:13px}
+h2{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+section{min-width:0}
+.seg{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+.seg button{flex:1;border:0;border-left:1px solid var(--rule);background:transparent;color:var(--ink);font:500 13px var(--body);padding:9px 6px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+.ctl{display:grid;gap:12px}
+.ctl label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.parts{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.parts button{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--rule);color:var(--ink);font:inherit;padding:8px 6px;cursor:pointer}
+.parts button b{font-weight:600;display:block}
+.parts button span{color:var(--muted);font-size:12.5px}
+.parts button[aria-pressed="true"]{box-shadow:inset 3px 0 0 var(--accent)}
+.parts button[aria-pressed="true"] b{color:var(--accent)}
+dl{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin:0;font-size:13px}
+dt{color:var(--muted)} dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.note{color:var(--muted);font-size:12.5px;margin:0}
+.ghost{border:1px solid var(--rule);background:var(--sheet);color:var(--ink);font:500 11px var(--mono);padding:6px 10px;border-radius:3px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (max-width:760px){
+  .app{flex-direction:column}
+  .view{flex:0 0 52%}
+  .hud span{display:none}
+  .hud{justify-content:flex-end}
+  .block{flex:1 1 auto;border-left:0;border-top:1px solid var(--rule)}
+}
+</style>
+
+<div class="app">
+  <div class="view" id="view">
+    <canvas id="c" aria-label="3D wireframe of the SP3-CTR. Drag to rotate, scroll or pinch to zoom."></canvas>
+    <div class="hud"><span>drag: rotate · pinch / scroll: zoom · two fingers / right-drag: pan</span><button class="ghost" id="reset" type="button">Reset view</button></div>
+    <div class="fail" id="fail" hidden>The 3D library did not load, so the model cannot be drawn. Reload the page to try again.</div>
+  </div>
+
+  <aside class="block">
+    <header>
+      <h1>SP3-CTR</h1>
+      <p class="sub">Signature Projector, mark 3, Coherent Tone Resonator. Concept wireframe, 10 GHz.</p>
+    </header>
+
+    <section class="ctl">
+      <div>
+        <label id="l-state">State</label>
+        <div class="seg" role="group" aria-labelledby="l-state">
+          <button type="button" id="st-0" data-state="0" aria-pressed="false">Stationary</button>
+          <button type="button" id="st-1" data-state="1" aria-pressed="true">Active</button>
+        </div>
+      </div>
+      <div>
+        <label id="l-face">Array face (active)</label>
+        <div class="seg" role="group" aria-labelledby="l-face">
+          <button type="button" id="fc-c" data-face="1" aria-pressed="false">Concave</button>
+          <button type="button" id="fc-f" data-face="0" aria-pressed="true">Flat</button>
+          <button type="button" id="fc-x" data-face="-1" aria-pressed="false">Convex</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Parts. Tap to highlight</h2>
+      <ul class="parts" id="parts"></ul>
+    </section>
+
+    <section>
+      <h2>Dimensions</h2>
+      <dl>
+        <dt>Carrier</dt><dd>10 GHz, λ = 3 cm</dd>
+        <dt>Active aperture</dt><dd>5.0 m</dd>
+        <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
+        <dt>Tiles in array / total</dt><dd>19 / 20</dd>
+        <dt>Stowed shell</dt><dd>⌀ 2.9 m</dd>
+        <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
+        <dt>Elements per tile</dt><dd>≈ 3 800</dd>
+        <dt>Horn baseline</dt><dd>4.85 m</dd>
+      </dl>
+    </section>
+
+    <p class="note">Stowed, the 20 tiles are the hexagonal faces of a truncated icosahedron; the 12 pentagonal gaps stay open as listening ports. Same tiles, same edge length, laid flat they make the 5 m aperture from the hull derivation. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+  const view = document.getElementById('view'), canvas = document.getElementById('c');
+  if (!window.THREE || !THREE.OrbitControls) { document.getElementById('fail').hidden = false; return; }
+  const T = THREE, V3 = T.Vector3, PI = Math.PI;
+
+  // ---- dimensions (metres). Model +z is boresight. ----
+  const A = 1/Math.sqrt(3);      // hex edge: 1.00 m flat to flat
+  const R = A*0.975;             // drawn tile circumradius, leaves a seam between tiles
+  const TH = 0.06;               // tile thickness
+  const Z_BOOM = 0.10;           // boom / carriage-ring plane
+  const Z_ARR = 0.24;            // array back surface, flat face
+  const RC = 9;                  // radius of curvature for concave / convex face
+  const R_STOW = 1.0;            // boom tip radius when retracted (= ring radius)
+  const BUS_R = 0.4, BOOM_R0 = 0.34;
+
+  // ---- materials ----
+  const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
+  const dotMat = new T.PointsMaterial({ size:2.2, sizeAttenuation:false });
+  const beamMat = new T.LineDashedMaterial({ dashSize:0.12, gapSize:0.09 });
+  const lineMats = {};
+  const lineMat = k => lineMats[k] || (lineMats[k] = new T.LineBasicMaterial());
+
+  function part(key, geo, o){
+    o = o || {};
+    const g = new T.Group();
+    if (o.fill !== false) g.add(new T.Mesh(geo, fillMat));
+    g.add(new T.LineSegments(new T.EdgesGeometry(geo, o.angle || 20), lineMat(key)));
+    return g;
+  }
+  const zCyl = (rt, rb, h, seg, open) => new T.CylinderGeometry(rt, rb, h, seg, 1, !!open).rotateX(PI/2); // axis along z
+
+  const scene = new T.Scene(), root = new T.Group();
+  scene.add(root);
+
+  // ---- chassis: bus truss, core, ring, radiators, aft mast ----
+  const bus = part('bus', zCyl(BUS_R, BUS_R, 1.05, 6), { fill:false });
+  bus.position.z = -0.425; root.add(bus);
+
+  const core = part('core', new T.IcosahedronGeometry(0.2, 0), { angle:1 });
+  core.position.z = -0.45; root.add(core);
+  [0, PI/2].forEach(rx => {
+    const ring = part('core', new T.TorusGeometry(0.29, 0.012, 4, 48), { angle:30 });
+    ring.position.z = -0.45; ring.rotation.x = rx; root.add(ring);
+  });
+
+  const rail = part('ring', new T.TorusGeometry(R_STOW, 0.035, 4, 96), { angle:30 });
+  rail.position.z = Z_BOOM; root.add(rail);
+
+  [30, 150, 270].forEach(deg => {
+    const fin = part('rad', new T.BoxGeometry(0.45, 0.02, 0.6).translate(BUS_R + 0.225, 0, -0.6));
+    fin.rotation.z = deg*PI/180; root.add(fin);
+  });
+
+  // ---- truncated icosahedron: the 20 hex faces are the stowed tile poses ----
+  function hexFaces(){
+    const p = (1 + Math.sqrt(5))/2, k = 3*A/2, v = [];
+    for (const a of [-1,1]) for (const b of [-1,1])
+      v.push(new V3(0, a, b*p), new V3(a, b*p, 0), new V3(b*p, 0, a));
+    v.forEach(x => x.multiplyScalar(k));
+    const near = (i, j) => Math.abs(v[i].distanceTo(v[j]) - 3*A) < 1e-6;
+    const faces = [];
+    for (let i = 0; i < 12; i++) for (let j = i+1; j < 12; j++) for (let l = j+1; l < 12; l++){
+      if (!(near(i,j) && near(j,l) && near(i,l))) continue;
+      let a = v[i], b = v[j], c = v[l];
+      const cen = new V3().add(a).add(b).add(c).divideScalar(3);
+      if (new V3().subVectors(b,a).cross(new V3().subVectors(c,a)).dot(cen) < 0) { const s = b; b = c; c = s; }
+      faces.push({ c:cen, v0:new V3().lerpVectors(a, b, 1/3) });
+    }
+    // put one face on +z, with its first vertex at 30 deg to match the flat tiling
+    const q = new T.Quaternion().setFromUnitVectors(faces[0].c.clone().normalize(), new V3(0,0,1));
+    faces.forEach(f => { f.c.applyQuaternion(q); f.v0.applyQuaternion(q); });
+    const q2 = new T.Quaternion().setFromAxisAngle(new V3(0,0,1), PI/6 - Math.atan2(faces[0].v0.y, faces[0].v0.x));
+    faces.forEach(f => {
+      f.c.applyQuaternion(q2); f.v0.applyQuaternion(q2);
+      f.n = f.c.clone().normalize();
+      const u = f.v0.clone().sub(f.c).normalize(), w = new V3().crossVectors(f.n, u);
+      f.qs = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, w, f.n));
+      f.ps = f.c.clone().addScaledVector(f.n, TH/2);   // back face sits on the polyhedron, so tiles never intersect
+    });
+    return faces;
+  }
+  const faces = hexFaces();
+  const top = faces[0];
+  const aft = faces.reduce((m, f) => f.n.z < m.n.z ? f : m);
+  const movers = faces.filter(f => f !== aft);
+
+  // ---- flat 19-hex slots, matched to faces by unrolling the sphere ----
+  const slots = [];
+  for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++)
+    if (Math.abs(q + r) <= 2) slots.push({ x:q + r/2, y:r*Math.sqrt(3)/2 });
+  (function match(){
+    top.slot = slots.find(s => s.x === 0 && s.y === 0); top.slot.used = true;
+    const pairs = [];
+    movers.forEach(f => { if (f === top) return;
+      const rho = Math.acos(f.n.z)*0.83, phi = Math.atan2(f.n.y, f.n.x), fx = rho*Math.cos(phi), fy = rho*Math.sin(phi);
+      slots.forEach(s => { if (!s.used) pairs.push({ f, s, d:Math.hypot(s.x - fx, s.y - fy) }); });
+    });
+    pairs.sort((a, b) => a.d - b.d).forEach(p => { if (!p.f.slot && !p.s.used) { p.f.slot = p.s; p.s.used = true; } });
+  })();
+
+  let kappa = 0;
+  function setDeployedPoses(){
+    const zAx = new V3(0,0,1);
+    movers.forEach(f => {
+      const x = f.slot.x, y = f.slot.y;
+      const z = Z_ARR + (kappa < 0 ? 0.3 : 0) + kappa*(x*x + y*y)/(2*RC);
+      const n = new V3(-kappa*x/RC, -kappa*y/RC, 1).normalize();
+      const u = new V3(Math.cos(PI/6), Math.sin(PI/6), 0); u.addScaledVector(n, -u.dot(n)).normalize();
+      const q0 = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, new V3().crossVectors(n, u), n));
+      let best = null, bd = -1;
+      for (let i = 0; i < 6; i++){   // hex symmetry: take the clocking closest to the stowed attitude
+        const q = q0.clone().multiply(new T.Quaternion().setFromAxisAngle(zAx, i*PI/3)), d = Math.abs(q.dot(f.qs));
+        if (d > bd) { bd = d; best = q; }
+      }
+      f.qd = best; f.nd = n;
+      f.pd = new V3(x, y, z).addScaledVector(n, TH/2);
+      f.ad = new V3(x, y, Z_BOOM + 0.025);                       // carriage foot on the boom plane
+      const rr = Math.hypot(f.c.x, f.c.y), cz = Math.max(-0.9, Math.min(0.05, f.c.z));
+      f.as = rr < 1e-6 ? new V3(0, 0, Z_BOOM) : new V3(f.c.x/rr*0.37, f.c.y/rr*0.37, cz);   // carriage foot on the bus
+    });
+  }
+
+  // ---- tiles ----
+  const tileGeo = new T.CylinderGeometry(R, R, TH, 6, 1)
+    .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // axis -> z, vertex 0 -> +x
+  const insetGeo = new T.BufferGeometry().setFromPoints(
+    Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*R*0.9, Math.sin(i*PI/3)*R*0.9, TH/2 + 0.001)));
+  const dotGeo = (function(){
+    const pts = [], pitch = 0.105, Rm = R*0.84, s3 = Math.sqrt(3);
+    for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){
+      const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
+      if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) pts.push(new V3(x, y, TH/2 + 0.002));
+    }
+    return new T.BufferGeometry().setFromPoints(pts);
+  })();
+  faces.forEach(f => {
+    const key = f === aft ? 'aft' : 'tiles';
+    f.obj = part(key, tileGeo);
+    f.obj.add(new T.Line(insetGeo, lineMat(key)));
+    if (f !== aft) f.obj.add(new T.Points(dotGeo, dotMat));
+    f.obj.position.copy(f.ps); f.obj.quaternion.copy(f.qs);
+    root.add(f.obj);
+  });
+  const mast = part('aft', zCyl(0.05, 0.05, 0.36, 8), { angle:50 });
+  mast.position.z = -1.13; root.add(mast);
+
+  const strutPos = new Float32Array(movers.length*6);
+  const strutGeo = new T.BufferGeometry(); strutGeo.setAttribute('position', new T.BufferAttribute(strutPos, 3));
+  const struts = new T.LineSegments(strutGeo, lineMat('struts')); struts.frustumCulled = false; root.add(struts);
+
+  // ---- booms and horns ----
+  const boomGeo = new T.BoxGeometry(1, 0.05, 0.05).translate(0.5, 0, 0);
+  function horn(key, mouth, throat, h){
+    const g = new T.Group();
+    const wg = part(key, new T.BoxGeometry(0.06, 0.06, 0.1)); wg.position.z = 0.075; g.add(wg);
+    const fl = part(key, new T.CylinderGeometry(mouth, throat, h, 4, 1, true).rotateY(PI/4).rotateX(PI/2));
+    fl.position.z = 0.125 + h/2; g.add(fl);
+    return g;
+  }
+  const booms = [];
+  for (let i = 0; i < 12; i++){
+    const ang = i*PI/6, b = { ang, tip:i % 2 ? 2.8 : 2.3 };
+    b.obj = part('booms', boomGeo);
+    b.obj.position.set(Math.cos(ang)*BOOM_R0, Math.sin(ang)*BOOM_R0, Z_BOOM); b.obj.rotation.z = ang;
+    root.add(b.obj);
+    if (i % 2){
+      b.horn = i % 4 === 1 ? horn('vib', 0.16, 0.03, 0.35) : horn('harm', 0.09, 0.02, 0.22);
+      b.horn.rotation.z = ang; root.add(b.horn);
+    }
+    booms.push(b);
+  }
+
+  const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,0.7), new V3(0,0,4.2)]), beamMat);
+  beam.computeLineDistances(); root.add(beam);
+
+  // ---- pose update, e = 0 stowed .. 1 active ----
+  const tmp = new V3(), tmp2 = new V3();
+  function pose(e){
+    const bulge = Math.sin(PI*e)*0.7;
+    movers.forEach((f, i) => {
+      f.obj.position.lerpVectors(f.ps, f.pd, e).addScaledVector(f.n, bulge);
+      f.obj.quaternion.copy(f.qs).slerp(f.qd, e);
+      tmp.lerpVectors(f.as, f.ad, e).toArray(strutPos, i*6);
+      tmp2.set(0, 0, -TH/2).applyQuaternion(f.obj.quaternion).add(f.obj.position).toArray(strutPos, i*6 + 3);
+    });
+    strutGeo.attributes.position.needsUpdate = true;
+    booms.forEach(b => {
+      const r = R_STOW + (b.tip - R_STOW)*e;
+      b.obj.scale.x = r - BOOM_R0;
+      if (b.horn) b.horn.position.set(Math.cos(b.ang)*r, Math.sin(b.ang)*r, Z_BOOM);
+    });
+    beam.visible = e > 0.999;
+  }
+
+  // ---- renderer, camera, controls ----
+  const renderer = new T.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const camera = new T.PerspectiveCamera(32, 1, 0.1, 200);
+  const controls = new T.OrbitControls(camera, canvas);
+  controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 2.5; controls.maxDistance = 40;
+  function resetView(){
+    const asp = view.clientWidth/Math.max(1, view.clientHeight), d = 12.5/Math.min(1, asp*0.95);
+    camera.position.set(0.55, 0.36, 0.75).normalize().multiplyScalar(d);
+    controls.target.set(0, 0, 0); controls.update();
+  }
+  function resize(){
+    const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(view);
+
+  // ---- theme ----
+  let highlight = null;
+  function paint(){
+    const cs = getComputedStyle(document.documentElement), c = n => cs.getPropertyValue(n).trim();
+    renderer.setClearColor(new T.Color(c('--bg')));
+    fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); beamMat.color.set(c('--accent'));
+    for (const k in lineMats) lineMats[k].color.set(!highlight ? c('--line') : k === highlight ? c('--accent') : c('--dim'));
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
+  new MutationObserver(paint).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+
+  // ---- UI ----
+  const PARTS = [
+    ['tiles', 'Phased-array tiles ×19', 'Transmit subarrays. Shell faces when stowed, the 5 m aperture when active.'],
+    ['aft',   'Aft cap tile and mast', 'The 20th hexagon. Stays put and closes the back of the shell.'],
+    ['struts','Tile carriages', 'One arm per tile. Foot rides the bus when stowed, the booms when active.'],
+    ['ring',  'Carriage ring', '⌀ 2.0 m rail the tiles slide around on their way out.'],
+    ['booms', 'Telescoping booms ×12', 'Six back the array, six carry horns clear of its edge.'],
+    ['vib',   'Vibrometry horns ×3', '10 GHz receive. Read the hull echo timing for heartbeat and breath.'],
+    ['harm',  'Harmonic horns ×3', '20 GHz receive. Listen for the second-harmonic junction echo.'],
+    ['bus',   'Bus truss', 'Open hexagonal frame around the core.'],
+    ['core',  'Core vessel', 'Singularity containment. Deliberately left as a placeholder.'],
+    ['rad',   'Radiator fins ×3', 'Fixed, sized to stay inside the stowed shell.']
+  ];
+  const list = document.getElementById('parts');
+  PARTS.forEach(([k, name, desc]) => {
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; b.id = 'part-' + k; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<b></b><span></span>'; b.firstChild.textContent = name; b.lastChild.textContent = desc;
+    b.addEventListener('click', () => {
+      highlight = highlight === k ? null : k;
+      list.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b && !!highlight)));
+      paint();
+    });
+    li.appendChild(b); list.appendChild(li);
+  });
+
+  let t = 1, goal = 1;
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll('[data-state]').forEach(b => b.addEventListener('click', () => {
+    goal = +b.dataset.state; if (still.matches) t = goal;
+    document.querySelectorAll('[data-state]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {
+    kappa = +b.dataset.face; setDeployedPoses();
+    document.querySelectorAll('[data-face]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  document.getElementById('reset').addEventListener('click', resetView);
+
+  setDeployedPoses(); resize(); resetView(); paint();
+  let last = performance.now();
+  (function loop(now){
+    const dt = Math.min(0.05, (now - last)/1000); last = now;
+    if (t !== goal) t = goal > t ? Math.min(goal, t + dt/1.4) : Math.max(goal, t - dt/1.4);
+    pose(t*t*(3 - 2*t));
+    controls.update(); renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })(last);
+})();
+</script>
