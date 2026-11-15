@@ -2,7 +2,7 @@
 //   npm i playwright && npx playwright install chromium
 //   node tools/render_orchid.js
 // Optional env: LW (line weight in pixels, default 3), PX (image size, default 2048; the exploded view is twice as
-// wide), OUT (output folder), ONLY=views|gif|exploded to redo just that part.
+// wide), OUT (output folder), ONLY=views|gif|exploded|blend to redo just that part.
 // The GIFs (stowed, unfold, open, fold, looping: orchid-loop.gif in iso, -concave from the side with the concave face,
 // -front head-on; GIFS=loop,front picks some) take FPS (default 50, the most a GIF plays reliably),
 // GPX (its size, default 800) and GLW (its line weight, default 2); it needs Python with Pillow.
@@ -294,6 +294,49 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
   const ex = await p.evaluate(EXPLODE, { dir:VIEWS.profile[0], up:VIEWS.profile[1], W:PX*2, LW, ORDER, NOTES });
   if (ex.skipped.length) console.log('not placed in the exploded view:', ex.skipped.join(', '));
   fs.writeFileSync(`${OUT}/orchid-exploded.png`, Buffer.from(ex.png.split(',')[1],'base64')); console.log('orchid-exploded');
+  }
+
+  // Blender: the Orchid as glTF with the unfold baked in as animation (1 s stowed, 4 s unfold, 2 s open, 4 s fold,
+  // 1 s stowed, at 24 fps), then tools/make_blend.py turns it into blender/specter-orchid.blend. Fresh page, since
+  // the exploded view moved the parts.
+  if (!ONLY || ONLY === 'blend') {
+    await p.reload(); await p.waitForTimeout(1500); await state(0, '#fc-f');
+    await p.addScriptTag({ url:'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js' });
+    const GLB_OUT = path.join(ROOT, 'blender', 'specter-orchid.glb'); fs.mkdirSync(path.dirname(GLB_OUT), { recursive:true });
+    const b64 = await p.evaluate(() => new Promise(res => {
+      const { T, root } = window.__r, FPS = 24, N = 96, ease = x => (1 - Math.cos(Math.PI*x))/2;
+      const keys = [[0, 0]];                                            // [frame, deployment]
+      for (let i = 0; i <= N; i++) keys.push([24 + i, ease(i/N)]);
+      for (let i = 0; i <= N; i++) keys.push([24 + N + 48 + i, 1 - ease(i/N)]);
+      keys.push([24 + 2*N + 48 + 24, 0]);
+      // lines and dots are screen drawing only; the solids carry the model
+      const drop = []; root.traverse(o => { if (o.isLine || o.isPoints) drop.push(o); }); drop.forEach(o => o.parent.remove(o));
+      const nodes = []; root.traverse(o => { if (o !== root) nodes.push(o); });
+      const shown = o => { for (let a = o; a && a !== root; a = a.parent) if (!a.visible) return false; return true; };
+      const rec = nodes.map(() => ({ p:[], q:[], s:[], vis:[] }));
+      keys.forEach(([, v]) => { window.__pose(v); nodes.forEach((o, i) => { const r = rec[i], vis = o.visible;
+        r.p.push(...o.position.toArray()); r.q.push(...o.quaternion.toArray()); r.vis.push(vis);
+        r.s.push(...(vis ? o.scale.toArray() : [1e-4, 1e-4, 1e-4])); r.ever = r.ever || shown(o); }); });
+      window.__pose(0);
+      // never shown in any pose (the other mounts, the beam): leave it out; shown only some of the time: scale to nothing
+      nodes.forEach((o, i) => { if (!rec[i].ever && o.parent) o.parent.remove(o); });
+      const times = keys.map(([f]) => f/FPS), tracks = [], same = a => a.every((x, j) => Math.abs(x - a[j % (a.length/keys.length)]) < 1e-6);
+      nodes.forEach((o, i) => { const r = rec[i]; if (!r.ever) return; o.visible = true; o.scale.fromArray(r.s, 0);
+        if (!same(r.p)) tracks.push(new T.VectorKeyframeTrack(`${o.uuid}.position`, times, r.p));
+        if (!same(r.q)) tracks.push(new T.QuaternionKeyframeTrack(`${o.uuid}.quaternion`, times, r.q));
+        if (!same(r.s)) tracks.push(new T.VectorKeyframeTrack(`${o.uuid}.scale`, times, r.s)); });
+      const mats = {}, mat = k => mats[k] || (mats[k] = new T.MeshStandardMaterial({ name:k, color:0xbfc5cc, metalness:0.5, roughness:0.55, side:(k==='vib'||k==='harm') ? T.DoubleSide : T.FrontSide }));
+      const geos = new Map();
+      root.traverse(o => { if (!o.isMesh) return; o.material = mat(o.userData.key || 'core');
+        if (!geos.has(o.geometry)) { const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.computeVertexNormals(); geos.set(o.geometry, g); }
+        o.geometry = geos.get(o.geometry); });
+      root.name = 'SP3-CTR Orchid'; root.updateMatrixWorld(true);
+      new THREE.GLTFExporter().parse(root, buf => { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); res(btoa(s)); },
+        { binary:true, trs:true, onlyVisible:false, animations:[new T.AnimationClip('unfold', -1, tracks)] });
+    }));
+    fs.writeFileSync(GLB_OUT, Buffer.from(b64, 'base64')); console.log('specter-orchid.glb');
+    try { require('child_process').execFileSync('blender', ['-b', '--factory-startup', '--python', path.join(__dirname, 'make_blend.py'), '--', GLB_OUT, GLB_OUT.replace(/\.glb$/, '.blend')], { stdio:'inherit' }); }
+    catch (e) { console.log('blender not run (' + e.message.split('\n')[0] + '); the .glb is there to import by hand'); }
   }
   await b.close();
 })();

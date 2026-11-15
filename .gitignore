@@ -9,3 +9,6 @@ renders/
 *.jpg
 *.jpeg
 *.webp
+
+# Blender keeps its previous save as .blend1
+*.blend1
