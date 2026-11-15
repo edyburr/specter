@@ -329,7 +329,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     f.obj.position.copy(f.ps); f.obj.quaternion.copy(f.qs);
     root.add(f.obj);
   });
-  const mast = part('aft', zCyl(0.05, 0.05, 0.36, 8), { angle:50 });
+  const mast = part('aft', zCyl(0.05, 0.05, 0.36, 6));
   mast.position.z = -1.13; root.add(mast);
 
   const strutPos = new Float32Array(movers.length*6);
@@ -434,7 +434,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
     f.obj.add(h); hingeBits.push(h);
   });
-  const cmast = part('hinge', zCyl(0.04, 0.04, 1.2, 8), { angle:50 });
+  const cmast = part('hinge', zCyl(0.04, 0.04, 1.2, 6));
   cmast.position.z = Z_BOOM + 0.6; root.add(cmast); hingeBits.push(cmast);
 
   // ---- renderer, camera, controls ----
