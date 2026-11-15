@@ -421,7 +421,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   hingeTransforms(1, 1);
   movers.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); });
   booms.forEach(bm => {
-    bm.tipH = [2.0, 2.8, 3.3, 3.9].find(r => movers.every(f => Math.hypot(f.flat.x - r*Math.cos(bm.ang), f.flat.y - r*Math.sin(bm.ang)) >= 0.76)) || 3.9;
+    bm.tipH = [2.0, 2.8, 3.3, 3.9, 4.3, 4.8].find(r => movers.every(f => Math.hypot(f.flat.x - r*Math.cos(bm.ang), f.flat.y - r*Math.sin(bm.ang)) >= 0.76)) || 4.8;
   });
   const hingeBits = [];
   const hingeGeo = zCyl(0.018, 0.018, 0.3, 6);
@@ -505,7 +505,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     document.querySelectorAll('[data-mech]').forEach(x => x.setAttribute('aria-pressed', String(!!+x.dataset.mech === h)));
     document.getElementById('l-dep').textContent = h ? 'Deployment: open, uncurl, extend, raise' : 'Deployment: lift, slide, unfurl';
     document.getElementById('d-ap').textContent = h ? '7.0 m, thinned' : '5.0 m, filled';
-    document.getElementById('d-ring').textContent = h ? '⌀ 4.0 to 6.6 m' : '⌀ 5.6 m';
+    document.getElementById('d-ring').textContent = h ? '⌀ 4.0 to 8.6 m' : '⌀ 5.6 m';
   }
   document.querySelectorAll('[data-mech]').forEach(b => b.addEventListener('click', () => setMech(!!+b.dataset.mech)));
   document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {
