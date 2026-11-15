@@ -41,6 +41,7 @@ section{min-width:0}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
 .ctl{display:grid;gap:12px}
 .ctl label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.ctl input[type=range]{display:block;width:100%;margin:0;accent-color:var(--accent)}
 .parts{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
 .parts button{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--rule);color:var(--ink);font:inherit;padding:8px 6px;cursor:pointer}
 .parts button b{font-weight:600;display:block}
@@ -83,6 +84,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         </div>
       </div>
       <div>
+        <label for="dep">Deployment: lift, slide, unfurl</label>
+        <input type="range" id="dep" min="0" max="100" value="100" step="1">
+      </div>
+      <div>
         <label id="l-face">Array face (active)</label>
         <div class="seg" role="group" aria-labelledby="l-face">
           <button type="button" id="fc-c" data-face="1" aria-pressed="false">Concave</button>
@@ -107,11 +112,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         <dt>Stowed shell</dt><dd>⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
         <dt>Elements per tile</dt><dd>≈ 3 800</dd>
-        <dt>Horn baseline</dt><dd>4.85 m</dd>
+        <dt>Receive horns</dt><dd>6 + 6</dd>
+        <dt>Horn ring</dt><dd>⌀ 5.6 m</dd>
       </dl>
     </section>
 
-    <p class="note">Stowed, the 20 tiles are the hexagonal faces of a truncated icosahedron; the 12 pentagonal gaps stay open as listening ports. Same tiles, same edge length, laid flat they make the 5 m aperture from the hull derivation. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
+    <p class="note">Stowed, the 20 tiles are the hexagonal faces of a truncated icosahedron; the 12 pentagonal gaps stay open as listening ports. Same tiles, same edge length, laid flat they make the 5 m aperture from the hull derivation. The horns ride 14 cm behind the array face, out of the transmit beam. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
   </aside>
 </div>
 
@@ -128,10 +134,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const R = A*0.975;             // drawn tile circumradius, leaves a seam between tiles
   const TH = 0.06;               // tile thickness
   const Z_BOOM = 0.10;           // boom / carriage-ring plane
-  const Z_ARR = 0.24;            // array back surface, flat face
+  const Z_ARR = 0.72;            // array back surface, flat face. Sits above the horn mouths so horns can slide out underneath
   const RC = 9;                  // radius of curvature for concave / convex face
   const R_STOW = 1.0;            // boom tip radius when retracted (= ring radius)
-  const BUS_R = 0.4, BOOM_R0 = 0.34;
+  const BUS_R = 0.45, BOOM_R0 = 0.39, CORE_Z = -0.45;
 
   // ---- materials ----
   const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
@@ -156,12 +162,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const bus = part('bus', zCyl(BUS_R, BUS_R, 1.05, 6), { fill:false });
   bus.position.z = -0.425; root.add(bus);
 
-  const core = part('core', new T.IcosahedronGeometry(0.2, 0), { angle:1 });
-  core.position.z = -0.45; root.add(core);
-  [0, PI/2].forEach(rx => {
-    const ring = part('core', new T.TorusGeometry(0.29, 0.012, 4, 48), { angle:30 });
-    ring.position.z = -0.45; ring.rotation.x = rx; root.add(ring);
+  // core: singularity, containment field (three great circles), geodesic Dyson shell around it
+  const holeMat = new T.MeshBasicMaterial();
+  const hole = new T.Mesh(new T.SphereGeometry(0.035, 16, 10), holeMat); hole.position.z = CORE_Z; root.add(hole);
+  const circ = new T.BufferGeometry().setFromPoints(
+    Array.from({ length:65 }, (_, i) => new V3(Math.cos(i*PI/32)*0.17, Math.sin(i*PI/32)*0.17, 0)));
+  [[0,0], [PI/2,0], [0,PI/2]].forEach(r => {
+    const l = new T.Line(circ, lineMat('core')); l.position.z = CORE_Z; l.rotation.set(r[0], r[1], 0); root.add(l);
   });
+  const dyson = part('core', new T.IcosahedronGeometry(0.33, 1), { fill:false, angle:1 });
+  dyson.position.z = CORE_Z; root.add(dyson);
 
   const rail = part('ring', new T.TorusGeometry(R_STOW, 0.035, 4, 96), { angle:30 });
   rail.position.z = Z_BOOM; root.add(rail);
@@ -208,15 +218,26 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const slots = [];
   for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++)
     if (Math.abs(q + r) <= 2) slots.push({ x:q + r/2, y:r*Math.sqrt(3)/2 });
-  (function match(){
-    top.slot = slots.find(s => s.x === 0 && s.y === 0); top.slot.used = true;
-    const pairs = [];
-    movers.forEach(f => { if (f === top) return;
-      const rho = Math.acos(f.n.z)*0.83, phi = Math.atan2(f.n.y, f.n.x), fx = rho*Math.cos(phi), fy = rho*Math.sin(phi);
-      slots.forEach(s => { if (!s.used) pairs.push({ f, s, d:Math.hypot(s.x - fx, s.y - fy) }); });
-    });
-    pairs.sort((a, b) => a.d - b.d).forEach(p => { if (!p.f.slot && !p.s.used) { p.f.slot = p.s; p.s.used = true; } });
-  })();
+  // Tiers. The two polar triads feed the inner ring, the two equatorial bands feed the outer ring.
+  // Matching is order-preserving in azimuth, so tiles on the same shell never cross paths.
+  const az = o => Math.atan2(o.y, o.x);
+  function assign(fs, ss){
+    fs.sort((a, b) => az(a.n) - az(b.n)); ss.sort((a, b) => az(a) - az(b));
+    const m = fs.length; let best = 0, bc = Infinity;
+    for (let k = 0; k < m; k++){
+      let c = 0;
+      for (let i = 0; i < m; i++){ const d = az(fs[i].n) - az(ss[(i + k) % m]); c += Math.pow(Math.atan2(Math.sin(d), Math.cos(d)), 2); }
+      if (c < bc) { bc = c; best = k; }
+    }
+    fs.forEach((f, i) => { f.slot = ss[(i + best) % m]; });
+  }
+  const sr = s => Math.hypot(s.x, s.y), DEG = PI/180;
+  top.slot = slots.find(s => sr(s) < 0.1); top.lift = 0; top.polar = 0;
+  const rest = movers.filter(f => f !== top);
+  const inner = rest.filter(f => Math.abs(f.n.z) > 0.6), north = rest.filter(f => f.n.z > 0 && f.n.z < 0.6), south = rest.filter(f => f.n.z < 0 && f.n.z > -0.6);
+  assign(inner, slots.filter(s => sr(s) > 0.1 && sr(s) < 1.1)); inner.forEach(f => { f.lift = 0.42; f.polar = 42*DEG; });
+  assign(north, slots.filter(s => sr(s) > 1.6 && sr(s) < 1.8)); north.forEach(f => { f.lift = 0.98; f.polar = 32*DEG; });
+  assign(south, slots.filter(s => sr(s) > 1.9));                 south.forEach(f => { f.lift = 0.98; f.polar = 55*DEG; });
 
   let kappa = 0;
   function setDeployedPoses(){
@@ -227,16 +248,22 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const n = new V3(-kappa*x/RC, -kappa*y/RC, 1).normalize();
       const u = new V3(Math.cos(PI/6), Math.sin(PI/6), 0); u.addScaledVector(n, -u.dot(n)).normalize();
       const q0 = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, new V3().crossVectors(n, u), n));
+      // dock: where the tile parks on its shell before unfurling, straight above its slot's azimuth
+      const a = az(f.slot);
+      f.dd = new V3(Math.sin(f.polar)*Math.cos(a), Math.sin(f.polar)*Math.sin(a), Math.cos(f.polar));
+      f.rs = f.ps.length();
+      f.qslide = new T.Quaternion().setFromUnitVectors(f.n, f.dd);
+      const tip = new T.Quaternion().setFromUnitVectors(n, f.dd);
       let best = null, bd = -1;
       for (let i = 0; i < 6; i++){   // hex symmetry: take the clocking closest to the stowed attitude
-        const q = q0.clone().multiply(new T.Quaternion().setFromAxisAngle(zAx, i*PI/3)), d = Math.abs(q.dot(f.qs));
+        const q = q0.clone().multiply(new T.Quaternion().setFromAxisAngle(zAx, i*PI/3)), d = Math.abs(tip.clone().multiply(q).dot(f.qs));
         if (d > bd) { bd = d; best = q; }
       }
-      f.qd = best; f.nd = n;
+      f.qd = best; f.qk = tip.clone().multiply(best);
       f.pd = new V3(x, y, z).addScaledVector(n, TH/2);
       f.ad = new V3(x, y, Z_BOOM + 0.025);                       // carriage foot on the boom plane
       const rr = Math.hypot(f.c.x, f.c.y), cz = Math.max(-0.9, Math.min(0.05, f.c.z));
-      f.as = rr < 1e-6 ? new V3(0, 0, Z_BOOM) : new V3(f.c.x/rr*0.37, f.c.y/rr*0.37, cz);   // carriage foot on the bus
+      f.as = rr < 1e-6 ? new V3(0, 0, Z_BOOM) : new V3(f.c.x/rr*0.42, f.c.y/rr*0.42, cz);   // carriage foot on the bus
     });
   }
 
@@ -279,37 +306,44 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   }
   const booms = [];
   for (let i = 0; i < 12; i++){
-    const ang = i*PI/6, b = { ang, tip:i % 2 ? 2.8 : 2.3 };
+    const ang = i*PI/6, b = { ang, tip:2.8 };
     b.obj = part('booms', boomGeo);
     b.obj.position.set(Math.cos(ang)*BOOM_R0, Math.sin(ang)*BOOM_R0, Z_BOOM); b.obj.rotation.z = ang;
     root.add(b.obj);
-    if (i % 2){
-      b.horn = i % 4 === 1 ? horn('vib', 0.16, 0.03, 0.35) : horn('harm', 0.09, 0.02, 0.22);
-      b.horn.rotation.z = ang; root.add(b.horn);
-    }
+    b.horn = i % 2 ? horn('vib', 0.16, 0.03, 0.35) : horn('harm', 0.09, 0.02, 0.22);
+    b.horn.rotation.z = ang; root.add(b.horn);
     booms.push(b);
   }
 
-  const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,0.7), new V3(0,0,4.2)]), beamMat);
+  const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,1.1), new V3(0,0,4.6)]), beamMat);
   beam.computeLineDistances(); root.add(beam);
 
-  // ---- pose update, e = 0 stowed .. 1 active ----
-  const tmp = new V3(), tmp2 = new V3();
-  function pose(e){
-    const bulge = Math.sin(PI*e)*0.7;
+  // ---- pose update, t = 0 stowed .. 1 active, in three beats ----
+  //  lift:   tiles unlatch and rise off the shell onto tiered shells (outer-ring tiles highest)
+  //  slide:  each tile rides its shell to a dock above its slot, forming a bud over the ring
+  //  unfurl: booms telescope out, tiles ride them down and tip flat
+  const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x*x*(3 - 2*x);
+  const tmp = new V3(), tmp2 = new V3(), dir = new V3(), nn = new V3(), pk = new V3();
+  const qt = new T.Quaternion(), qo = new T.Quaternion(), qc = new T.Quaternion();
+  function pose(t){
+    const a = ss(t/0.22), b = ss((t - 0.22)/0.38), c = ss((t - 0.6)/0.4);
     movers.forEach((f, i) => {
-      f.obj.position.lerpVectors(f.ps, f.pd, e).addScaledVector(f.n, bulge);
-      f.obj.quaternion.copy(f.qs).slerp(f.qd, e);
-      tmp.lerpVectors(f.as, f.ad, e).toArray(strutPos, i*6);
+      dir.copy(f.n).applyQuaternion(qt.set(0,0,0,1).slerp(f.qslide, b));
+      pk.copy(dir).multiplyScalar(f.rs + f.lift*a);
+      qo.copy(f.qs).slerp(f.qk, b);
+      qo.premultiply(qc.setFromUnitVectors(nn.set(0,0,1).applyQuaternion(qo), dir));   // keep the tile tangent to its shell
+      f.obj.position.lerpVectors(pk, f.pd, c);
+      f.obj.quaternion.copy(qo).slerp(f.qd, c);
+      tmp.lerpVectors(f.as, f.ad, c).toArray(strutPos, i*6);
       tmp2.set(0, 0, -TH/2).applyQuaternion(f.obj.quaternion).add(f.obj.position).toArray(strutPos, i*6 + 3);
     });
     strutGeo.attributes.position.needsUpdate = true;
-    booms.forEach(b => {
-      const r = R_STOW + (b.tip - R_STOW)*e;
-      b.obj.scale.x = r - BOOM_R0;
-      if (b.horn) b.horn.position.set(Math.cos(b.ang)*r, Math.sin(b.ang)*r, Z_BOOM);
+    booms.forEach(bm => {
+      const r = R_STOW + (bm.tip - R_STOW)*c;
+      bm.obj.scale.x = r - BOOM_R0;
+      bm.horn.position.set(Math.cos(bm.ang)*r, Math.sin(bm.ang)*r, Z_BOOM);
     });
-    beam.visible = e > 0.999;
+    beam.visible = t > 0.999;
   }
 
   // ---- renderer, camera, controls ----
@@ -334,7 +368,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   function paint(){
     const cs = getComputedStyle(document.documentElement), c = n => cs.getPropertyValue(n).trim();
     renderer.setClearColor(new T.Color(c('--bg')));
-    fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); beamMat.color.set(c('--accent'));
+    fillMat.color.set(c('--fill')); holeMat.color.set(c('--ink')); dotMat.color.set(c('--dot')); beamMat.color.set(c('--accent'));
     for (const k in lineMats) lineMats[k].color.set(!highlight ? c('--line') : k === highlight ? c('--accent') : c('--dim'));
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
@@ -344,13 +378,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PARTS = [
     ['tiles', 'Phased-array tiles ×19', 'Transmit subarrays. Shell faces when stowed, the 5 m aperture when active.'],
     ['aft',   'Aft cap tile and mast', 'The 20th hexagon. Stays put and closes the back of the shell.'],
-    ['struts','Tile carriages', 'One arm per tile. Foot rides the bus when stowed, the booms when active.'],
-    ['ring',  'Carriage ring', '⌀ 2.0 m rail the tiles slide around on their way out.'],
-    ['booms', 'Telescoping booms ×12', 'Six back the array, six carry horns clear of its edge.'],
-    ['vib',   'Vibrometry horns ×3', '10 GHz receive. Read the hull echo timing for heartbeat and breath.'],
-    ['harm',  'Harmonic horns ×3', '20 GHz receive. Listen for the second-harmonic junction echo.'],
+    ['struts','Tile carriages', 'One arm per tile. Foot rides the bus when stowed, then lands on a boom.'],
+    ['ring',  'Carriage ring', '⌀ 2.0 m rail. The booms retract to it when stowed.'],
+    ['booms', 'Telescoping booms ×12', 'Every tile lands on one. Each carries a horn out past the array edge.'],
+    ['vib',   'Vibrometry horns ×6', '10 GHz receive, on a 5.6 m ring. Read the hull echo timing for heartbeat and breath.'],
+    ['harm',  'Harmonic horns ×6', '20 GHz receive, interleaved with the others. Listen for the second-harmonic junction echo.'],
     ['bus',   'Bus truss', 'Open hexagonal frame around the core.'],
-    ['core',  'Core vessel', 'Singularity containment. Deliberately left as a placeholder.'],
+    ['core',  'Core and Dyson shell', 'Singularity at the centre, containment field around it, geodesic collector shell outside.'],
     ['rad',   'Radiator fins ×3', 'Fixed, sized to stay inside the stowed shell.']
   ];
   const list = document.getElementById('parts');
@@ -367,11 +401,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   });
 
   let t = 1, goal = 1;
-  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const still = matchMedia('(prefers-reduced-motion: reduce)'), dep = document.getElementById('dep');
+  const markState = () => document.querySelectorAll('[data-state]').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.state === goal)));
   document.querySelectorAll('[data-state]').forEach(b => b.addEventListener('click', () => {
-    goal = +b.dataset.state; if (still.matches) t = goal;
-    document.querySelectorAll('[data-state]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    goal = +b.dataset.state; if (still.matches) { t = goal; dep.value = t*100; }
+    markState();
   }));
+  dep.addEventListener('input', () => { t = goal = dep.value/100; markState(); });
   document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {
     kappa = +b.dataset.face; setDeployedPoses();
     document.querySelectorAll('[data-face]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -382,8 +418,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   let last = performance.now();
   (function loop(now){
     const dt = Math.min(0.05, (now - last)/1000); last = now;
-    if (t !== goal) t = goal > t ? Math.min(goal, t + dt/1.4) : Math.max(goal, t - dt/1.4);
-    pose(t*t*(3 - 2*t));
+    if (t !== goal) { t = goal > t ? Math.min(goal, t + dt/4.5) : Math.max(goal, t - dt/4.5); dep.value = Math.round(t*100); }
+    pose(t);
     controls.update(); renderer.render(scene, camera);
     requestAnimationFrame(loop);
   })(last);
