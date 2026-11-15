@@ -156,7 +156,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   function part(key, geo, o){
     o = o || {};
     const g = new T.Group();
-    if (o.fill !== false) g.add(new T.Mesh(geo, fillMat));
+    const m = new T.Mesh(geo, fillMat); m.name = key; m.userData.key = key;
+    if (o.fill === false) { m.visible = false; m.userData.nofill = true; }   // kept for export, never drawn
+    g.add(m);
     g.add(new T.LineSegments(new T.EdgesGeometry(geo, o.angle || 20), lineMat(key)));
     return g;
   }
@@ -183,7 +185,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const rail = part('ring', new T.TorusGeometry(R_STOW, 0.035, 4, 96), { angle:30 });
   rail.position.z = Z_BOOM; root.add(rail);
 
-  [30, 150, 270].forEach(deg => {
+  [30, 90, 150, 210, 270, 330].forEach(deg => {   // one per bus corner, so every elevation is symmetric
     const fin = part('rad', new T.BoxGeometry(0.45, 0.02, 0.6).translate(BUS_R + 0.225, 0, -0.6));
     fin.rotation.z = deg*PI/180; root.add(fin);
   });
@@ -468,7 +470,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['harm',  'Harmonic horns ×6', '20 GHz receive, interleaved with the others. Listen for the second-harmonic junction echo.'],
     ['bus',   'Bus truss', 'Open hexagonal frame around the core.'],
     ['core',  'Core and Dyson shell', 'Singularity at the centre, containment field around it, geodesic collector shell outside.'],
-    ['rad',   'Radiator fins ×3', 'Fixed, sized to stay inside the stowed shell.']
+    ['rad',   'Radiator fins ×6', 'One per bus corner. Fixed, sized to stay inside the stowed shell.']
   ];
   const list = document.getElementById('parts');
   PARTS.forEach(([k, name, desc]) => {
