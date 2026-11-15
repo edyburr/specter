@@ -92,7 +92,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         </div>
       </div>
       <div>
-        <label for="dep">Deployment: lift, slide, unfurl</label>
+        <label id="l-mech">Mechanism</label>
+        <div class="seg" role="group" aria-labelledby="l-mech">
+          <button type="button" id="mc-0" data-mech="0" aria-pressed="true">Carriages</button>
+          <button type="button" id="mc-1" data-mech="1" aria-pressed="false">Hinged peel</button>
+        </div>
+      </div>
+      <div>
+        <label for="dep" id="l-dep">Deployment: lift, slide, unfurl</label>
         <input type="range" id="dep" min="0" max="100" value="100" step="1">
       </div>
       <div>
@@ -114,18 +121,18 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       <h2>Dimensions</h2>
       <dl>
         <dt>Carrier</dt><dd>10 GHz, λ = 3 cm</dd>
-        <dt>Active aperture</dt><dd>5.0 m</dd>
+        <dt>Active aperture</dt><dd id="d-ap">5.0 m, filled</dd>
         <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
         <dt>Tiles in array / total</dt><dd>19 / 20</dd>
         <dt>Stowed shell</dt><dd>⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
         <dt>Elements per tile</dt><dd>≈ 3 800</dd>
         <dt>Receive horns</dt><dd>6 + 6</dd>
-        <dt>Horn ring</dt><dd>⌀ 5.6 m</dd>
+        <dt>Horn ring</dt><dd id="d-ring">⌀ 5.6 m</dd>
       </dl>
     </section>
 
-    <p class="note">Stowed, the 20 tiles are the hexagonal faces of a truncated icosahedron; the 12 pentagonal gaps stay open as listening ports. Same tiles, same edge length, laid flat they make the 5 m aperture from the hull derivation. The horns ride 14 cm behind the array face, out of the transmit beam. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
+    <p class="note">Stowed, the 20 tiles are the hexagonal faces of a truncated icosahedron; the 12 pentagonal gaps stay open as listening ports. Same tiles, same edge length, laid flat they make the 5 m aperture from the hull derivation. In hinged mode the same tiles unfold as a net: hexagons only share alternate edges, so the net is a three-lobed honeycomb with tile-sized holes. Wider than the filled array, so a narrower main beam, but thinned, so stronger sidelobes. Three horns look out through the holes. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
   </aside>
 </div>
 
@@ -213,6 +220,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       f.n = f.c.clone().normalize();
       const u = f.v0.clone().sub(f.c).normalize(), w = new V3().crossVectors(f.n, u);
       f.qs = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, w, f.n));
+      f.verts = Array.from({ length:6 }, (_, k) => f.c.clone().addScaledVector(u, A*Math.cos(k*PI/3)).addScaledVector(w, A*Math.sin(k*PI/3)));
       f.ps = f.c.clone().addScaledVector(f.n, TH/2);   // back face sits on the polyhedron, so tiles never intersect
     });
     return faces;
@@ -221,6 +229,27 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const top = faces[0];
   const aft = faces.reduce((m, f) => f.n.z < m.n.z ? f : m);
   const movers = faces.filter(f => f !== aft);
+
+  // ---- hinged variant: tiles joined along shared edges, as a tree rooted at the front tile ----
+  faces.forEach(f => { f.adj = []; f.G = new T.Matrix4(); });
+  for (let i = 0; i < faces.length; i++) for (let j = i + 1; j < faces.length; j++){
+    const f = faces[i], g = faces[j], sh = f.verts.filter(v => g.verts.some(x => x.distanceTo(v) < 1e-4));
+    if (sh.length === 2){ const mid = sh[0].clone().add(sh[1]).multiplyScalar(0.5); f.adj.push({ g, mid }); g.adj.push({ g:f, mid }); }
+  }
+  const order = [];
+  (function(){
+    top.depth = 0; const queue = [top];
+    while (queue.length){
+      const f = queue.shift(); order.push(f);
+      f.adj.forEach(e => { const g = e.g;
+        if (g === aft || g.depth !== undefined) return;
+        g.depth = f.depth + 1; g.par = f; g.hP = e.mid;
+        g.hD = new V3().crossVectors(g.n, f.n).normalize();   // hinge axis: the shared edge
+        g.hA = g.n.angleTo(f.n);                              // fold angle to take out
+        queue.push(g);
+      });
+    }
+  })();
 
   // ---- flat 19-hex slots, matched to faces by unrolling the sphere ----
   const slots = [];
@@ -269,6 +298,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       }
       f.qd = best; f.qk = tip.clone().multiply(best);
       f.pd = new V3(x, y, z).addScaledVector(n, TH/2);
+      f.fa0 = az(f.c); f.fr = sr(f.slot);
+      f.fda = Math.atan2(Math.sin(a - f.fa0), Math.cos(a - f.fa0));
       f.ad = new V3(x, y, Z_BOOM + 0.025);                       // carriage foot on the boom plane
       const rr = Math.hypot(f.c.x, f.c.y), cz = Math.max(-0.9, Math.min(0.05, f.c.z));
       f.as = rr < 1e-6 ? new V3(0, 0, Z_BOOM) : new V3(f.c.x/rr*0.42, f.c.y/rr*0.42, cz);   // carriage foot on the bus
@@ -323,7 +354,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     booms.push(b);
   }
 
-  const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,1.1), new V3(0,0,4.6)]), beamMat);
+  const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,1.8), new V3(0,0,5)]), beamMat);
   beam.computeLineDistances(); root.add(beam);
 
   // ---- pose update, t = 0 stowed .. 1 active, in three beats ----
@@ -342,28 +373,74 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       qo.premultiply(qc.setFromUnitVectors(nn.set(0,0,1).applyQuaternion(qo), dir));   // keep the tile tangent to its shell
       f.obj.position.lerpVectors(pk, f.pd, c);
       f.obj.quaternion.copy(qo).slerp(f.qd, c);
-      tmp.lerpVectors(f.as, f.ad, c).toArray(strutPos, i*6);
+      // carriage foot never leaves hardware: round the bus during the slide, then out along its boom
+      if (f === top) tmp.lerpVectors(f.as, f.ad, c);
+      else { const ph = f.fa0 + f.fda*b, rf = 0.42 + (f.fr - 0.42)*c; tmp.set(Math.cos(ph)*rf, Math.sin(ph)*rf, f.as.z + (Z_BOOM + 0.025 - f.as.z)*b); }
+      tmp.toArray(strutPos, i*6);
       tmp2.set(0, 0, -TH/2).applyQuaternion(f.obj.quaternion).add(f.obj.position).toArray(strutPos, i*6 + 3);
     });
     strutGeo.attributes.position.needsUpdate = true;
+    setBooms(c, 'tip');
+    beam.visible = t > 0.999;
+  }
+  function setBooms(c, key){
     booms.forEach(bm => {
-      const r = R_STOW + (bm.tip - R_STOW)*c;
+      const r = R_STOW + (bm[key] - R_STOW)*c;
       bm.obj.scale.x = r - BOOM_R0;
       bm.horn.position.set(Math.cos(bm.ang)*r, Math.sin(bm.ang)*r, Z_BOOM);
     });
-    beam.visible = t > 0.999;
   }
 
+  // Hinged pose: petals open at the root first, then each arm uncurls outward, then the booms extend.
+  // Every hinge only ever opens away from the shell. Concave / convex is a few degrees of over- or under-travel per hinge.
+  const hm = new T.Matrix4();
+  function hingeTransforms(u, k){
+    order.forEach(f => {
+      if (!f.par) { f.G.identity(); return; }
+      hm.makeRotationAxis(f.hD, f.hA*k*ss((u - (f.depth - 1)*0.18)/0.46));
+      tmp.copy(f.hP).applyMatrix4(hm);
+      hm.setPosition(f.hP.x - tmp.x, f.hP.y - tmp.y, f.hP.z - tmp.z);
+      f.G.multiplyMatrices(f.par.G, hm);
+    });
+  }
+  function poseHinged(t){
+    hingeTransforms(t/0.7, 1 + 0.08*kappa);
+    order.forEach(f => {
+      f.obj.position.copy(f.ps).applyMatrix4(f.G);
+      f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
+    });
+    setBooms(ss((t - 0.7)/0.3), 'tipH');
+    beam.visible = t > 0.999;
+  }
+  // hinged layout leaves tile-sized holes; park each horn at the first radius that is clear of every tile
+  hingeTransforms(1, 1);
+  movers.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); });
+  booms.forEach(bm => {
+    bm.tipH = [2.0, 2.8, 3.3, 3.9].find(r => movers.every(f => Math.hypot(f.flat.x - r*Math.cos(bm.ang), f.flat.y - r*Math.sin(bm.ang)) >= 0.72)) || 3.9;
+  });
+  const hingeBits = [];
+  const hingeGeo = zCyl(0.018, 0.018, 0.3, 6);
+  movers.forEach(f => { if (!f.par) return;
+    const inv = f.qs.clone().invert();
+    const h = part('hinge', hingeGeo, { angle:50 });
+    h.position.copy(f.hP).sub(f.ps).applyQuaternion(inv);
+    h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
+    f.obj.add(h); hingeBits.push(h);
+  });
+  const cmast = part('hinge', zCyl(0.04, 0.04, 1.2, 8), { angle:50 });
+  cmast.position.z = Z_BOOM + 0.6; root.add(cmast); hingeBits.push(cmast);
+
   // ---- renderer, camera, controls ----
+  let hinged = false;
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const camera = new T.PerspectiveCamera(32, 1, 0.1, 200);
   const controls = new T.OrbitControls(camera, canvas);
   controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 2.5; controls.maxDistance = 40;
   function resetView(){
-    const asp = view.clientWidth/Math.max(1, view.clientHeight), d = 12.5/Math.min(1, asp*0.95);
+    const asp = view.clientWidth/Math.max(1, view.clientHeight), d = (hinged ? 18 : 12.5)/Math.min(1, asp*0.95);
     camera.position.set(0.55, 0.36, 0.75).normalize().multiplyScalar(d);
-    controls.target.set(0, 0, 0); controls.update();
+    controls.target.set(0, 0, hinged ? 0.5 : 0); controls.update();
   }
   function resize(){
     const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
@@ -386,7 +463,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PARTS = [
     ['tiles', 'Phased-array tiles ×19', 'Transmit subarrays. Shell faces when stowed, the 5 m aperture when active.'],
     ['aft',   'Aft cap tile and mast', 'The 20th hexagon. Stays put and closes the back of the shell.'],
-    ['struts','Tile carriages', 'One arm per tile. Foot rides the bus when stowed, then lands on a boom.'],
+    ['struts','Tile carriages', 'Carriage mode. One arm per tile; its foot rides round the bus, then out along a boom.'],
+    ['hinge', 'Edge hinges and centre mast', 'Hinged mode. 18 hinges on shared tile edges; the front tile stays fixed on the mast.'],
     ['ring',  'Carriage ring', '⌀ 2.0 m rail. The booms retract to it when stowed.'],
     ['booms', 'Telescoping booms ×12', 'Every tile lands on one. Each carries a horn out past the array edge.'],
     ['vib',   'Vibrometry horns ×6', '10 GHz receive, on a 5.6 m ring. Read the hull echo timing for heartbeat and breath.'],
@@ -416,18 +494,27 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     markState();
   }));
   dep.addEventListener('input', () => { t = goal = dep.value/100; markState(); });
+  function setMech(h){
+    hinged = h; resetView();
+    struts.visible = !h; hingeBits.forEach(o => { o.visible = h; });
+    document.querySelectorAll('[data-mech]').forEach(x => x.setAttribute('aria-pressed', String(!!+x.dataset.mech === h)));
+    document.getElementById('l-dep').textContent = h ? 'Deployment: open, uncurl, extend' : 'Deployment: lift, slide, unfurl';
+    document.getElementById('d-ap').textContent = h ? '7.0 m, thinned' : '5.0 m, filled';
+    document.getElementById('d-ring').textContent = h ? '⌀ 4.0 to 6.6 m' : '⌀ 5.6 m';
+  }
+  document.querySelectorAll('[data-mech]').forEach(b => b.addEventListener('click', () => setMech(!!+b.dataset.mech)));
   document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {
     kappa = +b.dataset.face; setDeployedPoses();
     document.querySelectorAll('[data-face]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.getElementById('reset').addEventListener('click', resetView);
 
-  setDeployedPoses(); resize(); resetView(); paint();
+  setDeployedPoses(); resize(); setMech(false); paint();
   let last = performance.now();
   (function loop(now){
     const dt = Math.min(0.05, (now - last)/1000); last = now;
     if (t !== goal) { t = goal > t ? Math.min(goal, t + dt/4.5) : Math.max(goal, t - dt/4.5); dep.value = Math.round(t*100); }
-    pose(t);
+    (hinged ? poseHinged : pose)(t);
     controls.update(); renderer.render(scene, camera);
     requestAnimationFrame(loop);
   })(last);
