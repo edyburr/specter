@@ -95,6 +95,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         <div class="seg" role="group" aria-labelledby="l-mount">
           <button type="button" id="hm-0" data-mount="0" aria-pressed="true">Boom tips</button>
           <button type="button" id="hm-1" data-mount="1" aria-pressed="false">Tile stalks</button>
+          <button type="button" id="hm-2" data-mount="2" aria-pressed="false">Port webs</button>
         </div>
       </div>
       <div>
@@ -131,7 +132,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       </dl>
     </section>
 
-    <p class="note">Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps stay open as listening ports. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. In hinged mode the 19 array tiles unfold as a net: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as the filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. With boom-tip mounts the horns rise on posts until their mouths are level with the array face. With tile stalks there are no booms in hinged mode at all: each horn rides a short stalk on the back of a rim tile and flips forward once the tile is flat. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
+    <p class="note">Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps stay open as listening ports. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. In hinged mode the 19 array tiles unfold as a net: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as the filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. With boom-tip mounts the horns rise on posts until their mouths are level with the array face. With tile stalks there are no booms in hinged mode at all: each horn rides a short stalk on the back of a rim tile and flips forward once the tile is flat. With port webs the 12 horns sit in the 12 pentagonal gaps of the stowed shell, slung on spokes from the surrounding tile corners; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
   </aside>
 </div>
 
@@ -336,6 +337,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const mast = part('rad', zCyl(0.05, 0.05, 1.0, 6));   // spine: carries the fins, and the aft cap in carriage mode
   mast.position.z = -0.81; root.add(mast);
 
+  const webGeo = new T.BoxGeometry(0.014, 0.014, 1);
   const struts = new T.Group(); root.add(struts);
   const strutGeo = new T.BoxGeometry(0.03, 0.03, 1), zUp = new V3(0,0,1);
   movers.forEach(f => { f.strut = part('struts', strutGeo); struts.add(f.strut); });
@@ -397,16 +399,17 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     aft.obj.position.copy(aft.ps); aft.obj.quaternion.copy(aft.qs);
     setBooms(c, tileHorns ? 'tipT' : 'tip');
     setStalks(ss((c - 0.45)/0.35), ss((c - 0.8)/0.2), 'phiC');
+    setWebs(0);
     beam.visible = t > 0.999;
   }
   function setBooms(c, key, rise){
-    rail.visible = !(tileHorns && hinged);
+    rail.visible = !((tileHorns || webHorns) && hinged);
     booms.forEach(bm => {
-      bm.obj.visible = rail.visible; bm.horn.visible = !tileHorns;
+      bm.obj.visible = rail.visible; bm.horn.visible = !(tileHorns || webHorns);
       const r = R_STOW + (bm[key] - R_STOW)*c, x = Math.cos(bm.ang)*r, y = Math.sin(bm.ang)*r, up = bm.lift*(rise || 0);
       bm.obj.scale.x = r - BOOM_R0;
       bm.horn.position.set(x, y, Z_BOOM + up);
-      bm.riser.visible = !tileHorns && up > 0.01; bm.riser.position.set(x, y, Z_BOOM); bm.riser.scale.z = Math.max(up, 0.01);
+      bm.riser.visible = !(tileHorns || webHorns) && up > 0.01; bm.riser.position.set(x, y, Z_BOOM); bm.riser.scale.z = Math.max(up, 0.01);
     });
   }
 
@@ -430,6 +433,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     });
     setBooms(ss((t - 0.6)/0.25), 'tipH', ss((t - 0.85)/0.15));
     setStalks(ss((t - 0.6)/0.25), ss((t - 0.85)/0.15), 'phiP');
+    setWebs(ss(t/0.6));
     beam.visible = t > 0.999;
   }
   // hinged layout leaves tile-sized holes; park each horn at the first radius that is clear of every tile
@@ -469,6 +473,48 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       f.hp.quaternion.setFromAxisAngle(zUp, phi).multiply(qy.setFromAxisAngle(yAx, PI*(1 - flip)));
     });
   }
+  // ---- third horn mount: port webs (hinged mode only) ----
+  // Stowed, each of the 12 pentagonal gaps in the shell holds one horn at its centre, mouth flush with the shell,
+  // slung on a web of elastic spokes from the corners of the tiles around the gap. When the petal opens, each gap
+  // relaxes into an empty hexagonal cell beside its tiles; the spokes stretch to that cell's diagonals and the horn
+  // stays at the centre. Where the peel tears a gap between two arms, the horn stays with the larger group of tiles.
+  const webs = faces.ico.map(c0 => {
+    const near = f => f.verts.map((v, k) => v.distanceTo(c0) < 1.2*A ? k : -1).filter(k => k >= 0);
+    const C = new V3(); let nC = 0;
+    faces.forEach(f => near(f).forEach(k => { C.add(f.verts[k]); nC++; })); C.divideScalar(nC);
+    let groups = movers.filter(f => near(f).length === 2).map(f => [f]), merged = true;
+    while (merged){ merged = false;
+      for (let a = 0; a < groups.length && !merged; a++) for (let b = a + 1; b < groups.length && !merged; b++)
+        if (groups[a].some(x => groups[b].some(y => x.par === y || y.par === x))) { groups[a] = groups[a].concat(groups[b]); groups.splice(b, 1); merged = true; } }
+    const score = g => { const m = new V3(); g.forEach(f => m.add(f.n)); return g.length + 0.1*Math.sign(new V3().crossVectors(c0, m).z); };
+    const grp = groups.sort((x, y) => score(y) - score(x))[0];
+    const vib = c0.z > 0.5*c0.length() || (c0.z < 0 && c0.z > -0.5*c0.length());
+    const w = { key:vib ? 'vib' : 'harm', rim:vib ? 0.115 : 0.065, tiles:[], anchors:[], spokes:[] };
+    grp.forEach(f => {
+      const inv = f.qs.clone().invert(), ks = near(f), m = new V3();
+      ks.forEach(k => { const loc = new V3(Math.cos(k*PI/3)*R, Math.sin(k*PI/3)*R, -TH/2); w.anchors.push({ f, loc }); m.add(loc); });
+      m.z = 0; m.normalize();
+      w.tiles.push({ f, ps:C.clone().sub(f.ps).applyQuaternion(inv), pf:new V3(m.x, m.y, -TH/2) });   // gap centre seen from this tile: stowed, and flat (one tile-width out)
+    });
+    w.obj = new T.Group(); const hn = vib ? horn('vib', 0.16, 0.03, 0.35) : horn('harm', 0.09, 0.02, 0.22);
+    hn.position.z = -(0.125 + (vib ? 0.35 : 0.22)); w.obj.add(hn); root.add(w.obj);
+    w.anchors.forEach(() => { const sp = part('web', webGeo); w.spokes.push(sp); root.add(sp); });
+    return w;
+  });
+  function setWebs(open){
+    webs.forEach(w => {
+      w.obj.visible = webHorns; w.spokes.forEach(sp => { sp.visible = webHorns; }); if (!webHorns) return;
+      const P = w.obj.position.set(0, 0, 0), n = nn.set(0, 0, 0);
+      w.tiles.forEach(tl => { P.add(tmp.lerpVectors(tl.ps, tl.pf, open).applyQuaternion(tl.f.obj.quaternion).add(tl.f.obj.position)); n.add(tmp.set(0, 0, 1).applyQuaternion(tl.f.obj.quaternion)); });
+      P.divideScalar(w.tiles.length); n.normalize(); w.obj.quaternion.setFromUnitVectors(zUp, n);
+      w.anchors.forEach((an, i) => {
+        tmp.copy(an.loc).applyQuaternion(an.f.obj.quaternion).add(an.f.obj.position);
+        tmp2.subVectors(tmp, P); const len = tmp2.length() - w.rim; tmp2.normalize();
+        const sp = w.spokes[i]; sp.position.copy(P).addScaledVector(tmp2, w.rim + len/2); sp.scale.z = Math.max(len, 1e-3);
+        sp.quaternion.setFromUnitVectors(zUp, tmp2);
+      });
+    });
+  }
   const hingeBits = [];
   const hingeGeo = zCyl(0.018, 0.018, 0.3, 6);
   order.forEach(f => { if (!f.par) return;
@@ -482,7 +528,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   cmast.position.z = Z_BOOM + 0.6; root.add(cmast); hingeBits.push(cmast);
 
   // ---- renderer, camera, controls ----
-  let hinged = false, tileHorns = false;
+  let hinged = false, tileHorns = false, webHorns = false;
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const camera = new T.PerspectiveCamera(32, 1, 0.1, 200);
@@ -516,6 +562,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['aft',   'Aft cap', 'The 20th hexagon. A blank closure plate where the spine meets the shell; it never deploys.'],
     ['struts','Tile carriages', 'Carriage mode. One arm per tile; its foot rides the core shell, then out along a boom.'],
     ['hinge', 'Edge hinges and centre mast', 'Hinged mode. 18 hinges on shared tile edges; the front tile stays fixed on the mast.'],
+    ['web',   'Port webs', 'Third horn mount, hinged mode. Elastic spokes from the tile corners round each gap in the shell, with a horn slung at the centre.'],
     ['ring',  'Carriage ring', '⌀ 2.0 m rail. The booms retract to it when stowed.'],
     ['booms', 'Telescoping booms and stalks', 'Booms: every carriage tile lands on one, and each can carry a horn. Stalks: the alternative horn mount, one on the back of each rim tile.'],
     ['vib',   'Vibrometry horns ×6', '10 GHz receive. Read the hull echo timing for heartbeat and breath.'],
@@ -545,18 +592,20 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   }));
   dep.addEventListener('input', () => { t = goal = dep.value/100; markState(); });
   function setMech(h){
+    if (!h && webHorns) webHorns = false;   // carriages scatter the tiles round each port, so fall back to boom tips
+    const mt = webHorns ? 2 : tileHorns ? 1 : 0;
+    document.querySelectorAll('[data-mount]').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.mount === mt)));
     const moved = hinged !== h; hinged = h; if (moved || !camera.position.lengthSq()) resetView();
     struts.visible = !h; hingeBits.forEach(o => { o.visible = h; });
     document.querySelectorAll('[data-mech]').forEach(x => x.setAttribute('aria-pressed', String(!!+x.dataset.mech === h)));
     document.getElementById('l-dep').textContent = h ? 'Deployment: open, uncurl, extend, raise' : 'Deployment: lift, slide, unfurl';
     const span = 2*(Math.max.apply(null, order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5), tips = booms.map(bm => 2*bm.tipH);
     document.getElementById('d-ap').textContent = h ? span.toFixed(1) + ' m, thinned' : '5.0 m, filled';
-    document.getElementById('d-ring').textContent = tileHorns ? 'on rim-tile stalks' : h ? '⌀ ' + Math.min.apply(null, tips).toFixed(1) + ' to ' + Math.max.apply(null, tips).toFixed(1) + ' m' : '⌀ 5.6 m';
+    document.getElementById('d-ring').textContent = webHorns ? 'in the shell ports' : tileHorns ? 'on rim-tile stalks' : h ? '⌀ ' + Math.min.apply(null, tips).toFixed(1) + ' to ' + Math.max.apply(null, tips).toFixed(1) + ' m' : '⌀ 5.6 m';
   }
   document.querySelectorAll('[data-mount]').forEach(b => b.addEventListener('click', () => {
-    tileHorns = !!+b.dataset.mount;
-    document.querySelectorAll('[data-mount]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    setMech(hinged);
+    const m = +b.dataset.mount; tileHorns = m === 1; webHorns = m === 2;
+    setMech(webHorns ? true : hinged);   // port webs only exist on the hinged shell
   }));
   document.querySelectorAll('[data-mech]').forEach(b => b.addEventListener('click', () => setMech(!!+b.dataset.mech)));
   document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {

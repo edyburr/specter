@@ -13,7 +13,7 @@ const ANCHOR = '  let last = performance.now();';
 const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 if (!src.includes(ANCHOR)) throw new Error('index.html changed: hook anchor not found');
 const PAGE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'specter-')), 'render.html');
-fs.writeFileSync(PAGE, src.replace(ANCHOR, '  window.__r = { T, root, scene, renderer, lineMats, fillMat, dotMat, beam, order };\n' + ANCHOR));
+fs.writeFileSync(PAGE, src.replace(ANCHOR, '  window.__r = { T, root, scene, renderer, lineMats, fillMat, dotMat, beam, order, webs };\n' + ANCHOR));
 const d2r = Math.PI/180, yaw = a => [-Math.cos(a*d2r), 0, Math.sin(a*d2r)];
 const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r), Math.sin(8*d2r), Math.sin(18*d2r)*Math.cos(8*d2r)],[0,1,0]],
   top:[[0,Math.cos(18*d2r),Math.sin(18*d2r)],[1,0,0]], iso:[[1,0.8,1.2],[0,1,0]], isoback:[[-1,0.8,-1.2],[0,1,0]], profile:[yaw(10),[0,1,0]] };
@@ -21,7 +21,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
   const b = await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader']});
   const open = async () => { const p = await b.newPage({viewport:{width:1200,height:800}}); p.on('pageerror',e=>console.log('PAGEERR',e.message));
     await p.goto('file://'+PAGE); await p.waitForTimeout(1500); return p; };
-  const state = async (p, mech, dep, face, mount) => { await p.click(mount ? '#hm-1' : '#hm-0'); await p.click(mech ? '#mc-1' : '#mc-0'); await p.click(face || '#fc-f');
+  const state = async (p, mech, dep, face, mount) => { await p.click('#hm-' + (mount || 0)); await p.click(mech ? '#mc-1' : '#mc-0'); await p.click(face || '#fc-f');
     await p.$eval('#dep',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))},dep); await p.waitForTimeout(300); };
   const p = await open();
   const shot = (view, half) => p.evaluate(({dir, up, half, PX}) => {
@@ -45,10 +45,12 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
     return renderer.domElement.toDataURL('image/png');
   }, {dir:VIEWS[view][0], up:VIEWS[view][1], half, PX});
   const save = async (name, view, half) => { const d = await shot(view, half); fs.writeFileSync(`${REN}/${name}.png`, Buffer.from(d.split(',')[1],'base64')); };
-  await state(p, 0, 0);
-  for (const [n,v] of [['closed-front','iso'],['closed-back','isoback']]) await save(n, v, (await shot(v)).half);
+  for (const [mount, sfx] of [[0,''],[2,'-web']]) {   // the port-web horns are visible in the closed shell
+    await state(p, mount ? 1 : 0, 0, null, mount);
+    for (const [n,v] of [['front','iso'],['back','isoback']]) await save(`closed${sfx}-${n}`, v, (await shot(v)).half);
+  }
   for (const [mech, tag] of [[0,'carriage'],[1,'petal']]) {
-    for (const [mount, sfx] of [[0,''],[1,'-stalk']]) {   // boom-tip horns, then tile-stalk horns
+    for (const [mount, sfx] of mech ? [[0,''],[1,'-stalk'],[2,'-web']] : [[0,''],[1,'-stalk']]) {   // boom tips, tile stalks, port webs (petal only)
       await state(p, mech, 100, null, mount);
       let half = 0; for (const v of ['front','side','top','iso']) half = Math.max(half, (await shot(v)).half);
       for (const v of ['front','side','top','iso']) await save(`${tag}${sfx}-${v}`, v, half);
@@ -59,7 +61,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
   }
   await p.close();
   // ---- glTF export: solid meshes only, one named material per part ----
-  for (const [name, mech, dep, mount] of [['specter-closed',0,0,0],['specter-carriage',0,100,0],['specter-petal',1,100,0],['specter-carriage-stalk',0,100,1],['specter-petal-stalk',1,100,1]]) {
+  for (const [name, mech, dep, mount] of [['specter-closed',0,0,0],['specter-carriage',0,100,0],['specter-petal',1,100,0],['specter-carriage-stalk',0,100,1],['specter-petal-stalk',1,100,1],['specter-closed-web',1,0,2],['specter-petal-web',1,100,2]]) {
     const q = await open(); await state(q, mech, dep, null, mount);
     await q.addScriptTag({ url:'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js' });
     const b64 = await q.evaluate(() => new Promise(res => {
