@@ -86,16 +86,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       <div>
         <label id="l-mech">Mechanism</label>
         <div class="seg" role="group" aria-labelledby="l-mech">
-          <button type="button" id="mc-0" data-mech="0" aria-pressed="true">Carriages</button>
-          <button type="button" id="mc-1" data-mech="1" aria-pressed="false">Hinged peel</button>
+          <button type="button" id="mc-0" data-mech="0" aria-pressed="false">Carriages</button>
+          <button type="button" id="mc-1" data-mech="1" aria-pressed="true">Hinged peel</button>
         </div>
       </div>
       <div>
         <label id="l-mount">Horn mounts</label>
         <div class="seg" role="group" aria-labelledby="l-mount">
-          <button type="button" id="hm-0" data-mount="0" aria-pressed="true">Boom tips</button>
+          <button type="button" id="hm-0" data-mount="0" aria-pressed="false">Boom tips</button>
           <button type="button" id="hm-1" data-mount="1" aria-pressed="false">Tile stalks</button>
-          <button type="button" id="hm-2" data-mount="2" aria-pressed="false">Port webs</button>
+          <button type="button" id="hm-2" data-mount="2" aria-pressed="true">Port webs</button>
         </div>
       </div>
       <div>
@@ -179,10 +179,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const rail = part('ring', new T.TorusGeometry(R_STOW, 0.035, 4, 96), { angle:30 });
   rail.position.z = Z_BOOM; root.add(rail);
 
-  [30, 90, 150, 210, 270, 330].forEach(deg => {   // six fins round the spine, so every elevation is symmetric
-    const fin = part('rad', new T.BoxGeometry(0.5, 0.02, 0.5).translate(0.3, 0, -0.75));
-    fin.rotation.z = deg*PI/180; root.add(fin);
+  // calyx: three nested V-groove shields on the spine, cupped toward the core. Each one intercepts heat coming down
+  // the spine from the core and sheds it sideways to space, so the tail end stays cold and still.
+  [[-0.42, 0.38], [-0.60, 0.30], [-0.78, 0.22]].forEach(c => {
+    const cup = part('rad', zCyl(c[1], 0.06, 0.16, 6, true));
+    cup.position.z = c[0] - 0.08; root.add(cup);
   });
+  // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
+  const ref = part('aft', zCyl(0.18, 0.18, 0.12, 6)); ref.position.z = -1.25; root.add(ref);
 
   // ---- truncated icosahedron: the 20 hex faces are the stowed tile poses ----
   function hexFaces(){
@@ -334,7 +338,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     f.obj.position.copy(f.ps); f.obj.quaternion.copy(f.qs);
     root.add(f.obj);
   });
-  const mast = part('rad', zCyl(0.05, 0.05, 1.0, 6));   // spine: carries the fins, and the aft cap in carriage mode
+  const mast = part('rad', zCyl(0.05, 0.05, 1.0, 6));   // spine: isolation strut carrying the calyx shields and the aft cap
   mast.position.z = -0.81; root.add(mast);
 
   const webGeo = new T.BoxGeometry(0.014, 0.014, 1);
@@ -559,16 +563,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // ---- UI ----
   const PARTS = [
     ['tiles', 'Phased-array tiles ×19', 'Transmit subarrays. Shell faces when stowed, the array when active.'],
-    ['aft',   'Aft cap', 'The 20th hexagon. A blank closure plate where the spine meets the shell; it never deploys.'],
+    ['aft',   'Aft cap and inertial reference', 'The 20th hexagon never deploys. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['struts','Tile carriages', 'Carriage mode. One arm per tile; its foot rides the core shell, then out along a boom.'],
     ['hinge', 'Edge hinges and centre mast', 'Hinged mode. 18 hinges on shared tile edges; the front tile stays fixed on the mast.'],
-    ['web',   'Port webs', 'Third horn mount, hinged mode. Elastic spokes from the tile corners round each gap in the shell, with a horn slung at the centre.'],
+    ['web',   'Port webs', 'Third horn mount, hinged mode. With the hinged peel this is the Webbed Orchid. Elastic spokes from the tile corners round each gap in the shell, with a horn slung at the centre.'],
     ['ring',  'Carriage ring', '⌀ 2.0 m rail. The booms retract to it when stowed.'],
     ['booms', 'Telescoping booms and stalks', 'Booms: every carriage tile lands on one, and each can carry a horn. Stalks: the alternative horn mount, one on the back of each rim tile.'],
     ['vib',   'Vibrometry horns ×6', '10 GHz receive. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Harmonic horns ×6', '20 GHz receive, interleaved with the others. Listen for the second-harmonic junction echo.'],
     ['core',  'Core shell', 'The outer shell again at 30% scale: 20 hexagons, 12 pentagons. Houses the singularity.'],
-    ['rad',   'Spine and radiator fins ×6', 'Fixed, sized to stay inside the stowed shell.']
+    ['rad',   'Spine and calyx shields ×3', 'Isolation strut with three V-groove shields. They shed core heat sideways so the tail stays cold and quiet.']
   ];
   const list = document.getElementById('parts');
   PARTS.forEach(([k, name, desc]) => {
@@ -614,7 +618,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   }));
   document.getElementById('reset').addEventListener('click', resetView);
 
-  setDeployedPoses(); pickCarriageDirs(); resize(); setMech(false); paint();
+  setDeployedPoses(); pickCarriageDirs(); resize(); webHorns = true; setMech(true); paint();   // opens as the Webbed Orchid
   let last = performance.now();
   (function loop(now){
     const dt = Math.min(0.05, (now - last)/1000); last = now;
