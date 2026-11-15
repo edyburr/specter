@@ -5,9 +5,8 @@ import numpy as np
 lam=0.03; k=2*np.pi/lam; s3=3**.5
 # filled: 19-hex cluster
 filled=[(q+r/2, r*s3/2) for q in range(-2,3) for r in range(-2,3) if abs(q+r)<=2]
-pol=[(0,0),(1,60),(1,-60),(1.732,-30),(1.732,30),(1,180),(1.732,90),(1.732,150),(1.732,-90),(1.732,-150),
-     (2.646,79.1),(2.646,160.9),(3.464,90),(2.646,-79.1),(2.646,-160.9),(3.464,-90),(2.646,-40.9),(2.646,40.9),(3.464,30)]
-petal=[(r*np.cos(np.radians(a)), r*np.sin(np.radians(a))) for r,a in pol]
+# petal layout: flattened tile centres from the hinged model, all 20 tiles (aft cap included)
+petal=[[0,0],[0.5,0.866],[0.5,-0.866],[-1,0],[1.5,0.866],[0,1.7321],[1.5,-0.866],[0,-1.7321],[-1.5,0.866],[-1.5,-0.866],[2,1.7321],[0.5,2.5981],[2,-1.7321],[0.5,-2.5981],[-2.5,0.866],[-2.5,-0.866],[3,-1.7321],[0,3.4641],[-3,-1.7321],[0.5,4.3301]]
 # hex tile sample points (vertex at 30deg => flat-to-flat 1 m along x)
 g=0.04; R=1/s3; pts=[]
 ax=np.arange(-0.6,0.6,g)+g/2
@@ -36,6 +35,6 @@ for name,c in (('filled',filled),('petal',petal)):
             x,y=a+da,b+db
             if 0<=x<m.shape[0] and 0<=y<m.shape[1] and m[x,y] and not main[x,y]: main[x,y]=True; st.append((x,y))
     side=I.copy(); side[main]=0
-    print(name,'peak(rel)',round(pk/ (len(pts)*19)**2,3),'HPBW x/y mrad',round(hp(I[n,:]),2),round(hp(I[:,n]),2),
+    print(name,'peak(rel)',round(pk/ (len(pts)*len(c))**2,3),'HPBW x/y mrad',round(hp(I[n,:]),2),round(hp(I[:,n]),2),
           'mainlobe power frac',round(I[main].sum()/I.sum(),3),'peak sidelobe dB',round(10*np.log10(side.max()/pk),1),
           'at mrad',round(rad.ravel()[side.argmax()]*1e3,1),'main lobe max radius mrad',round(rad[main].max()*1e3,1))

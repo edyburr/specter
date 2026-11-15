@@ -13,7 +13,7 @@ const ANCHOR = '  let last = performance.now();';
 const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 if (!src.includes(ANCHOR)) throw new Error('index.html changed: hook anchor not found');
 const PAGE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'specter-')), 'render.html');
-fs.writeFileSync(PAGE, src.replace(ANCHOR, '  window.__r = { T, root, scene, renderer, lineMats, fillMat, dotMat, holeMat, beam, struts };\n' + ANCHOR));
+fs.writeFileSync(PAGE, src.replace(ANCHOR, '  window.__r = { T, root, scene, renderer, lineMats, fillMat, dotMat, beam, order };\n' + ANCHOR));
 const d2r = Math.PI/180, yaw = a => [-Math.cos(a*d2r), 0, Math.sin(a*d2r)];
 const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r), Math.sin(8*d2r), Math.sin(18*d2r)*Math.cos(8*d2r)],[0,1,0]],
   top:[[0,Math.cos(18*d2r),Math.sin(18*d2r)],[1,0,0]], iso:[[1,0.8,1.2],[0,1,0]], isoback:[[-1,0.8,-1.2],[0,1,0]], profile:[yaw(10),[0,1,0]] };
@@ -25,9 +25,8 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
     await p.$eval('#dep',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))},dep); await p.waitForTimeout(300); };
   const p = await open();
   const shot = (view, half) => p.evaluate(({dir, up, half, PX}) => {
-    const { T, root, scene, renderer, lineMats, fillMat, dotMat, holeMat, beam } = window.__r;
+    const { T, root, scene, renderer, lineMats, fillMat, dotMat, beam } = window.__r;
     beam.visible = false;
-    root.traverse(o => { if (o.isMesh && o.userData.nofill && o.userData.key === 'core') o.visible = true; });   // solid Dyson shell: hidden-line ball
     root.updateMatrixWorld(true);
     const cam = new T.OrthographicCamera(-1,1,1,-1,0.1,400);
     cam.position.set(dir[0],dir[1],dir[2]).normalize().multiplyScalar(100); cam.up.set(up[0],up[1],up[2]); cam.lookAt(0,0,0); cam.updateMatrixWorld(true);
@@ -40,7 +39,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
     if (!half) return { half:Math.max(x1-x0,y1-y0)/0.9/2 };
     const cx=(x0+x1)/2, cy=(y0+y1)/2;
     cam.left=cx-half; cam.right=cx+half; cam.top=cy+half; cam.bottom=cy-half; cam.updateProjectionMatrix();
-    for (const k in lineMats) lineMats[k].color.set('#000'); dotMat.color.set('#000'); dotMat.size = Math.max(2, PX/820); holeMat.color.set('#000'); fillMat.color.set('#fff');
+    for (const k in lineMats) lineMats[k].color.set('#000'); dotMat.color.set('#000'); dotMat.size = Math.max(2, PX/820); fillMat.color.set('#fff');
     renderer.setPixelRatio(1); renderer.setSize(PX,PX,false); renderer.setClearColor(0xffffff);
     renderer.render(scene, cam);
     return renderer.domElement.toDataURL('image/png');
@@ -62,15 +61,11 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
     const q = await open(); await state(q, mech, dep);
     await q.addScriptTag({ url:'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js' });
     const b64 = await q.evaluate(() => new Promise(res => {
-      const { T, root, struts } = window.__r; root.updateMatrixWorld(true);
+      const { T, root } = window.__r; root.updateMatrixWorld(true);
       const mats = {}, mat = k => mats[k] || (mats[k] = new T.MeshStandardMaterial({ name:k, color:0xbfc5cc, metalness:0.5, roughness:0.55, side:(k==='vib'||k==='harm') ? T.DoubleSide : T.FrontSide }));
       const geos = new Map();
-      if (struts.visible) { const pos = struts.geometry.attributes.position, a = new T.Vector3(), c = new T.Vector3(), up = new T.Vector3(0,1,0);
-        for (let i = 0; i < pos.count; i += 2) { a.fromBufferAttribute(pos,i); c.fromBufferAttribute(pos,i+1); const len = a.distanceTo(c); if (len < 1e-3) continue;
-          const m = new T.Mesh(new T.CylinderGeometry(0.015,0.015,len,8), null); m.userData.key = 'struts'; m.name = 'struts';
-          m.position.copy(a).add(c).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(up, c.clone().sub(a).normalize()); root.add(m); } }
       root.traverse(o => {
-        if (o.isMesh) { o.visible = true; o.material = mat(o.userData.key || 'core'); if (!o.name) o.name = 'singularity';
+        if (o.isMesh) { o.material = mat(o.userData.key || 'core');
           if (!geos.has(o.geometry)) { const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); g.computeVertexNormals(); geos.set(o.geometry, g); }
           o.geometry = geos.get(o.geometry); }
         else if (o.isLine || o.isPoints) o.visible = false;
