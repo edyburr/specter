@@ -5,8 +5,8 @@ import numpy as np
 lam=0.03; k=2*np.pi/lam; s3=3**.5
 # filled: 19-hex cluster
 filled=[(q+r/2, r*s3/2) for q in range(-2,3) for r in range(-2,3) if abs(q+r)<=2]
-# petal layout: flattened tile centres from the hinged model, all 20 tiles (aft cap included)
-petal=[[0,0],[0.5,0.866],[0.5,-0.866],[-1,0],[1.5,0.866],[0,1.7321],[1.5,-0.866],[0,-1.7321],[-1.5,0.866],[-1.5,-0.866],[2,1.7321],[0.5,2.5981],[2,-1.7321],[0.5,-2.5981],[-2.5,0.866],[-2.5,-0.866],[3,-1.7321],[0,3.4641],[-3,-1.7321],[0.5,4.3301]]
+# petal layout: flattened tile centres from the hinged model, the 19 array tiles
+petal=[[0,0],[0.5,0.866],[0.5,-0.866],[-1,0],[1.5,0.866],[0,1.7321],[1.5,-0.866],[0,-1.7321],[-1.5,0.866],[-1.5,-0.866],[2,1.7321],[0.5,2.5981],[2,-1.7321],[0.5,-2.5981],[-2.5,0.866],[-2.5,-0.866],[3,-1.7321],[0,3.4641],[-3,-1.7321]]
 # hex tile sample points (vertex at 30deg => flat-to-flat 1 m along x)
 g=0.04; R=1/s3; pts=[]
 ax=np.arange(-0.6,0.6,g)+g/2
