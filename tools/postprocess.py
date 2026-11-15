@@ -22,4 +22,5 @@ def sheet(names, out):
 
 for t in ('carriage', 'petal'):
     sheet([f'{t}-{v}' for v in ('front', 'side', 'top', 'iso')], f'{t}-active-sheet')
+    sheet([f'{t}-stalk-{v}' for v in ('front', 'side', 'top', 'iso')], f'{t}-stalk-active-sheet')
     sheet([f'{t}-face-{v}' for v in ('concave', 'flat', 'convex')], f'{t}-face-sheet')

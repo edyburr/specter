@@ -21,7 +21,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
   const b = await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader']});
   const open = async () => { const p = await b.newPage({viewport:{width:1200,height:800}}); p.on('pageerror',e=>console.log('PAGEERR',e.message));
     await p.goto('file://'+PAGE); await p.waitForTimeout(1500); return p; };
-  const state = async (p, mech, dep, face) => { await p.click(mech ? '#mc-1' : '#mc-0'); await p.click(face || '#fc-f');
+  const state = async (p, mech, dep, face, mount) => { await p.click(mount ? '#hm-1' : '#hm-0'); await p.click(mech ? '#mc-1' : '#mc-0'); await p.click(face || '#fc-f');
     await p.$eval('#dep',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))},dep); await p.waitForTimeout(300); };
   const p = await open();
   const shot = (view, half) => p.evaluate(({dir, up, half, PX}) => {
@@ -48,17 +48,19 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
   await state(p, 0, 0);
   for (const [n,v] of [['closed-front','iso'],['closed-back','isoback']]) await save(n, v, (await shot(v)).half);
   for (const [mech, tag] of [[0,'carriage'],[1,'petal']]) {
-    await state(p, mech, 100);
-    let half = 0; for (const v of ['front','side','top','iso']) half = Math.max(half, (await shot(v)).half);
-    for (const v of ['front','side','top','iso']) await save(`${tag}-${v}`, v, half);
-    const faces = [['concave','#fc-c'],['flat','#fc-f'],['convex','#fc-x']]; half = 0;
+    for (const [mount, sfx] of [[0,''],[1,'-stalk']]) {   // boom-tip horns, then tile-stalk horns
+      await state(p, mech, 100, null, mount);
+      let half = 0; for (const v of ['front','side','top','iso']) half = Math.max(half, (await shot(v)).half);
+      for (const v of ['front','side','top','iso']) await save(`${tag}${sfx}-${v}`, v, half);
+    }
+    const faces = [['concave','#fc-c'],['flat','#fc-f'],['convex','#fc-x']]; let half = 0;
     for (const [,id] of faces) { await state(p, mech, 100, id); half = Math.max(half, (await shot('profile')).half); }
     for (const [n,id] of faces) { await state(p, mech, 100, id); await save(`${tag}-face-${n}`, 'profile', half); }
   }
   await p.close();
   // ---- glTF export: solid meshes only, one named material per part ----
-  for (const [name, mech, dep] of [['specter-closed',0,0],['specter-carriage',0,100],['specter-petal',1,100]]) {
-    const q = await open(); await state(q, mech, dep);
+  for (const [name, mech, dep, mount] of [['specter-closed',0,0,0],['specter-carriage',0,100,0],['specter-petal',1,100,0],['specter-carriage-stalk',0,100,1],['specter-petal-stalk',1,100,1]]) {
+    const q = await open(); await state(q, mech, dep, null, mount);
     await q.addScriptTag({ url:'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js' });
     const b64 = await q.evaluate(() => new Promise(res => {
       const { T, root } = window.__r; root.updateMatrixWorld(true);
