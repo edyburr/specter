@@ -1,0 +1,11 @@
+node_modules/
+package.json
+package-lock.json
+
+# renders stay local
+renders/
+*.png
+*.gif
+*.jpg
+*.jpeg
+*.webp
