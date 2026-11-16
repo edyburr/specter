@@ -270,11 +270,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
     // in a hex eye that stands proud of the ring top and bottom. A port-web spoke's ball joint seats on each end of the eye,
     // and the horn's fibre enters the ring through it.
-    const EAR_H = 0.04, EAR_R = 0.016, EAR_Z = FR_TH/2 + 0.006, ears = [];
+    const EAR_H = 0.04, EAR_R = 0.016, EAR_Z = FR_TH/2 + 0.006, ears = [], earGeo = [];   // ears: where each corner's eye is; earGeo: its shape. A tile only gets the ears a spoke lands on
     for (let k = 0; k < 6; k++){ const C = dir2(k*PI/3).multiplyScalar(RING_O*2/S3), pe = k % 2 ? k : k - 1;   // pe: the port edge at this corner
       const e = dir2((30 + 60*pe)*deg), along = dir2((30 + 60*pe)*deg + (k % 2 ? PI/2 : -PI/2));        // out of the edge; along it, away from the corner
       const at = (x, h) => C.clone().addScaledVector(along, x).addScaledVector(e, h), eye = at(0.0575, EAR_H - 0.008);
-      frame.push([slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, ZB, FR_TH)], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, (EAR_Z + FR_TH/2)/2), 40], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, -(EAR_Z + FR_TH/2)/2), 40]);
+      earGeo.push(done(fuse([[slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, ZB, FR_TH)], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, (EAR_Z + FR_TH/2)/2), 40], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, -(EAR_Z + FR_TH/2)/2), 40]])));
       ears.push(new V3(eye.x, eye.y, 0)); }
     const deltaOut = [];
     for (let k = 0; k < 6; k++){ const a = (30 + 60*k)*deg, u = dir2(a), t = dir2(a + PI/2), w = DL_HEX/S3;
@@ -331,7 +331,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
-    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, EAR_Z };
+    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, earGeo, EAR_Z };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
@@ -382,6 +382,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const fused = (key, f, name) => { const g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = name; m.userData.key = key;
         g.add(m, new T.LineSegments(f.lines, lineMat(key))); return g; };
       const dk = cap ? 'aft' : 'delta', lk = cap ? 'aft' : 'lift';
+      this.ears = new Set();   // corners that carry a spoke ear
       this.obj = fused(fk, MOUNT.frame, 'Frame');
       this.obj.add(fused(lk, MOUNT.lift, 'Lift actuator'));
       // the stage: everything the lifts carry
@@ -398,6 +399,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
     // turn the panel about its centre, push it out by pis along the tile's normal, and run each actuator out to reach it
+    // fit the spoke ear beside corner k, once: only the corners a horn's spokes land on have one
+    addEar(k){
+      if (this.ears.has(k)) return; this.ears.add(k);
+      const f = MOUNT.earGeo[k], key = this.cap ? 'aft' : 'frame', m = new T.Mesh(f.solid, fillMat); m.name = 'Spoke ear'; m.userData.key = key;
+      this.obj.add(m, new T.LineSegments(f.lines, lineMat(key)));
+    }
     // push the stage out of the ring by lift, along the tile's normal, and turn the panel about its centre
     setPanel(q, lift){
       lift = lift || 0; this.pis = lift;
@@ -683,7 +690,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const d = a.f.verts[a.k].clone().sub(C); d.addScaledVector(n0, -d.dot(n0));
       if (!e1) e1 = d.clone().normalize();
       const e2 = new V3().crossVectors(n0, e1), vi = (Math.round(Math.atan2(d.dot(e2), d.dot(e1))/(2*PI/5)) % 5 + 5) % 5;
-      w.anchors.push({ f:a.f, loc:a.loc, vi });
+      w.anchors.push({ f:a.f, loc:a.loc, vi }); a.f.addEar(a.k);
     });
     w.obj = new T.Group(); w.horn = vib ? new HornA() : new HornB();
     w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.ear = w.horn.kind.ear; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
@@ -794,7 +801,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // ---- UI ----
   const PARTS = [
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
-    ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and spoke ears beside its corners. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
+    ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and a spoke ear beside each corner a horn\'s spokes land on. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
     ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel, its six actuators and three launch-lock posts, and rides straight out of the ring on the lifts.'],
     ['lift',  'Lift actuators ×57', 'Three per tile, on the three sides between the delta\'s arms, each on a tongue reaching in from the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
     ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They only aim: they tip the panel to the dish\'s slope, seat it on its locks for launch and lift it off in orbit.'],
