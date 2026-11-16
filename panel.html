@@ -158,7 +158,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   // cylinder up through the window to a ball under the whiffle. Two side by side under each arm.
   const BOT_T = 0.04, ACT_TILT = 12*deg;             // bodies BOT_T either side of the arm's centre line, each pair leaning together by ACT_TILT
   const BALL_R = 0.011;                              // shaft ball radius
-  const BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.014;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness
+  const BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness; round hub where the cylinder docks
   const ROD_R = 0.006, STROKE = 0.06;                // shaft, how far it runs
   const L_MIN = 0.07, L_MAX = L_MIN + STROKE;        // body mouth to shaft ball centre, shaft in and out
 
@@ -288,12 +288,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       return g; };
     const uGeos = { 1:uGeo(1), '-1':uGeo(-1) };
     const cylGeo = new T.CylinderGeometry(BODY_CYL, BODY_CYL, BODY_L - U_T - 0.01, 12, 1).rotateX(PI/2);
+    // the round hub in the middle of the ∪'s bottom, standing a little proud of the plate on both faces; the cylinder docks in it
+    const hubGeo = new T.CylinderGeometry(HUB_R, HUB_R, U_T + 0.008, 20, 1).rotateX(PI/2);
     const rodGeo = new T.CylinderGeometry(ROD_R, ROD_R, 1, 8, 1).rotateX(PI/2).translate(0, 0, 0.5);
     const ballGeo = new T.SphereGeometry(BALL_R, 10, 6);
     acts.forEach(a => {
       const top = part('act', ballGeo, 60); top.position.copy(a.p); panel.add(top);
       const body = new T.Group();   // local: x out along the arm (across the two legs), y across the arm, z up
-      body.add(part('act', uGeos[a.sg]), at3(part('act', cylGeo, 40), 0, -(BODY_L - U_T + 0.01)/2));
+      body.add(part('act', uGeos[a.sg]), at3(part('act', hubGeo, 40), 0, -BODY_L + U_T/2), at3(part('act', cylGeo, 40), 0, -(BODY_L - U_T + 0.01)/2));
       body.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(a.u, new V3().crossVectors(a.ax, a.u), a.ax));
       body.position.copy(a.o); tile.add(body);
       const l = { b:a.m.clone(), p:a.p.clone() };
