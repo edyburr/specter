@@ -188,6 +188,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
 (async()=>{
   const b = await chromium.launch({args:['--use-gl=swiftshader','--enable-unsafe-swiftshader']});
   const p = await b.newPage({viewport:{width:1200,height:800}}); p.on('pageerror',e=>console.log('PAGEERR',e.message));
+  await p.emulateMedia({ reducedMotion:'reduce' });   // renders want the face to jump to its state and the horns' scales to hold still
   await p.goto('file://'+PAGE); await p.waitForTimeout(1500);
   // WebGL draws every line 1 px wide, and 1 px lines break up when an image is shown smaller than it is. For each
   // render, __fat swaps every visible line for a wide line of LW pixels (real geometry, antialiased, one even shade
