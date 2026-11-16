@@ -456,9 +456,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     lump('cap', 'Capacitor bank', items); })();
 
   // ---- shadow shield ----
-  // The calyx, back where it earns its place: one flat hexagonal disc on the mast, just ahead of the core. Whatever the
+  // The calyx, back where it earns its place: one flat hexagonal disc on the mast, midway between the core and the processors. Whatever the
   // core throws forward meets it first, so the processors sit in its shadow. Only the mast passes through.
-  axial('shield', 0.3, Z_CORE_F + 0.05, Z_CORE_F + 0.07).children[0].name = 'Shadow shield';
+  axial('shield', 0.3, Z_CORE_F + 0.075, Z_CORE_F + 0.095).children[0].name = 'Shadow shield';
 
   // ---- processor cluster ----
   // The computer is a cluster: many small nodes working side by side, because the work is parallel. Nineteen tiles to
@@ -765,7 +765,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
     ['core',  'AEPEC core', 'A Dyson shell round a small singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons look inward, almost edge to edge; the 12 pentagons stand open, and the containment floats at the centre.'],
-    ['shield', 'Shadow shield', 'One flat disc on the mast, just ahead of the core, so the processors sit in its shadow.'],
+    ['shield', 'Shadow shield', 'One flat disc on the mast, midway between the core and the processors, which sit in its shadow.'],
     ['dsp',   'Processor cluster', 'The computer, an open cage round the mast where every fibre comes home: eighteen nodes on three tiers, working in parallel on nineteen tiles and twelve horns at once. Beamforming, and digitising and analysing what the horns hear.'],
     ['cap',   'Capacitor bank', 'Six banded cells round the spine, in a cage of rails with a bus deck at each end. The core is small and only trickles power; the cells store it over days and the array spends it in one hit. If they can no longer fill, the craft never opens.'],
     ['rad',   'Spine', 'Isolation strut from the core to the inertial reference, so the still point stays still.']
