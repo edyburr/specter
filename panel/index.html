@@ -53,6 +53,12 @@ section{min-width:0}
 dl{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin:0;font-size:13px}
 dt{color:var(--muted)} dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
 dd.bad{color:var(--accent);font-weight:500} dd.good{color:var(--ok)}
+.parts{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.parts button{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;border:0;border-left:2px solid transparent;
+  background:transparent;color:var(--ink);font:500 13px var(--body);padding:5px 8px;cursor:default}
+.parts button span{font:400 12px var(--body);color:var(--muted);grid-column:1 / -1}
+.parts button small{font:400 11px var(--mono);color:var(--muted)}
+.parts button:hover,.parts button:focus-visible{border-left-color:var(--accent);background:var(--bg)}
 .ghost{border:1px solid var(--rule);background:var(--sheet);color:var(--ink);font:500 11px var(--mono);padding:6px 10px;border-radius:3px;cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media (max-width:760px){
@@ -84,21 +90,31 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         </div>
       </div>
       <div><label for="fold">Fold <output id="o-fold"></output></label><input type="range" id="fold" min="0" max="1000" value="0"></div>
-      <div><label for="neck">Neck: frame to panel <output id="o-neck"></output></label><input type="range" id="neck" min="60" max="400" value="160"></div>
+      <div><label for="neck">Neck: delta frame to panel <output id="o-neck"></output></label><input type="range" id="neck" min="100" max="300" value="130"></div>
       <div><label for="drop">Hinge axis below panel <output id="o-drop"></output></label><input type="range" id="drop" min="0" max="420" value="30"></div>
-      <div><label for="fill">Frame size, of what fits <output id="o-fill"></output></label><input type="range" id="fill" min="40" max="100" value="90"></div>
       <div><label for="tip">Panel tip <output id="o-tip"></output></label><input type="range" id="tip" min="-120" max="120" value="0"></div>
       <div><label for="dir">Tip direction <output id="o-dir"></output></label><input type="range" id="dir" min="0" max="360" value="30"></div>
-      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-50" max="50" value="0"></div>
+      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-30" max="30" value="0"></div>
+    </section>
+
+    <section>
+      <h2>Parts, panel to delta frame</h2>
+      <ul class="parts" id="parts">
+        <li><button type="button" data-keys="panel">Panel <small>×1</small><span>Element face on an isogrid back of triangular pockets.</span></button></li>
+        <li><button type="button" data-keys="whiffle">Whiffles <small>×3</small><span>Trapezoidal pads, each bonded to the panel's rib nodes at three feet, so nothing pushes on one spot. Moved by the actuators.</span></button></li>
+        <li><button type="button" data-keys="act">Actuators <small>×6</small><span>Two per whiffle, side by side under each arm. Each is a squarish ∪ bracket hanging under the arm, its legs standing on the solid frame either side of the window, with a cylinder upright in its middle, all fixed; and a shaft that runs from the cylinder up through the window to the whiffle, the only part that moves. Together they tip, turn and piston the panel.</span></button></li>
+        <li><button type="button" data-keys="delta">Delta frame <small>×1</small><span>Fixed, the tile's base. A hexagon whose three edges facing the hinged edges run out as flat-ended arms, each with a window through it that follows its outline. Carries the actuators.</span></button></li>
+      </ul>
     </section>
 
     <section>
       <h2>Checks</h2>
       <dl>
         <dt>Gap to neighbour panel, flat</dt><dd id="k-flat"></dd>
-        <dt>Panel to hinge, at this tip</dt><dd id="k-tip"></dd>
-        <dt>Frame inside its wedge, stowed</dt><dd id="k-wedge"></dd>
+        <dt>Whiffles to delta frame, at this tip</dt><dd id="k-whf"></dd>
+        <dt>Delta frame inside its wedge, stowed</dt><dd id="k-wedge"></dd>
         <dt>Actuator length, min / max</dt><dd id="k-leg"></dd>
+        <dt>Actuator range, rod in / out</dt><dd id="k-range"></dd>
       </dl>
     </section>
 
@@ -106,11 +122,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <h2>Dimensions</h2>
       <dl>
         <dt>Panel, flat to flat</dt><dd>1.00 m</dd>
-        <dt>Frame, flat to flat</dt><dd id="d-frame"></dd>
+        <dt>Delta frame, centre to arm end</dt><dd id="d-delta"></dd>
         <dt>Hinge pitch when flat</dt><dd id="d-pitch"></dd>
         <dt>Fold angle per hinge</dt><dd id="d-fold"></dd>
         <dt>Stowed ball, panels</dt><dd id="d-ball"></dd>
-        <dt>Stowed ball, frames</dt><dd id="d-inner"></dd>
+        <dt>Stowed ball, delta frames</dt><dd id="d-inner"></dd>
       </dl>
     </section>
 
@@ -123,22 +139,72 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 (function(){
   const view = document.getElementById('view'), canvas = document.getElementById('c');
   if (!window.THREE || !THREE.OrbitControls) { document.getElementById('fail').hidden = false; return; }
-  const T = THREE, V3 = T.Vector3, PI = Math.PI, zUp = new V3(0,0,1), deg = PI/180;
+  const T = THREE, V3 = T.Vector3, V2 = T.Vector2, PI = Math.PI, zUp = new V3(0,0,1), deg = PI/180, S3 = Math.sqrt(3);
 
   // ---- fixed geometry (metres). Local frame of one tile: +z out of the ball, origin at the panel's back centre when stowed. ----
   // Hex faces of a truncated icosahedron: distance from the centre = K x half the face's flat-to-flat, K = golden ratio squared.
   // Neighbouring hex faces are FOLD apart.
   const PHIG = (1 + Math.sqrt(5))/2, K = PHIG*PHIG, FOLD = 2*Math.atan(1/K);
-  const W_P = 1.00, PL_TH = 0.02, SEAM = 0.01;     // panel flat to flat, panel thickness, seam between stowed panels
+  const W_P = 1.00, PL_TH = 0.02, FS_TH = 0.006, SEAM = 0.01;  // panel flat to flat and depth, its face sheet, seam between stowed panels
+  const RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = W_P/S3/GRID_N;  // isogrid: ribs behind the face sheet, GRID_N pockets corner to centre
   const D_P = K*(W_P + SEAM)/2;                    // shell centre to the panel's back
-  const FR_TH = 0.04, KN_R = 0.02;                  // frame thickness, hinge knuckle radius
   const HINGED = [0, 2, 4];                         // the three edges that hinge (edge k faces 30 + 60k degrees)
   const edgeU = k => new V3(Math.cos((30 + 60*k)*deg), Math.sin((30 + 60*k)*deg), 0);
-  const hexPrism = (inr, h) => { const r = inr*2/Math.sqrt(3);   // inradius in; vertex 0 on +x, axis z
+  // The mount, after the JWST segments. Fixed: the delta frame, the tile's base, whose three arms each have a window through
+  // them. Moving: six actuators' shafts (their bodies hang fixed under the arms), the whiffles they push, two to each, and the
+  // panel. Everything lines up on three directions, the hinged edges.
+  const BASE = HINGED.map(k => (30 + 60*k)*deg);
+  // whiffle: a small plate on three feet that stand on one rib triangle, its point inward: the inner foot on the rib node
+  // two rows out along the arm, the two outer feet on the row beyond. Its two actuators meet under the triangle's centre.
+  const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2, WH_R = WH_R1 + GS/S3, WH_M = 0.02;
+  const H_D = 0.03, DL_HEX = 0.22;                  // delta frame: depth, hexagon inradius
+  const DL_END = 0.358, DL_HOLE = 0.09;              // its arms' length; central opening (inradius)
+  const WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // a window through each arm: WIN_M in from the arm's sides, end and cut corners; its inner edge, and that edge's smaller 45° corners
+  const DL_TIP = 0.07;                               // half-width of an arm's end
+  // Actuators: each two parts. The body is a squarish ∪ bracket under the arm, its two legs standing on the solid frame
+  // either side of the window (inner and outer), with a cylinder held upright in the middle; the shaft runs from the
+  // cylinder up through the window to a ball under the whiffle. Two side by side under each arm.
+  const BOT_T = 0.04, ACT_TILT = 12*deg;             // bodies BOT_T either side of the arm's centre line, each pair leaning together by ACT_TILT
+  const BALL_R = 0.011;                              // shaft ball radius
+  const BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.014;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness
+  const ROD_R = 0.006, STROKE = 0.06;                // shaft, how far it runs
+  const L_MIN = 0.07, L_MAX = L_MIN + STROKE;        // body mouth to shaft ball centre, shaft in and out
+
+  const hexPrism = (inr, h) => { const r = inr*2/S3;   // inradius in; vertex 0 on +x, axis z
     return new T.CylinderGeometry(r, r, h, 6, 1).applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0))); };
+  const dir2 = a => new V2(Math.cos(a), Math.sin(a)), dir3 = (a, r, z) => new V3(Math.cos(a)*r, Math.sin(a)*r, z || 0);
+  // a flat slab from an outline (and holes), z0 to z0 + h
+  const slab = (outline, holes, z0, h) => { const s = new T.Shape(outline); (holes || []).forEach(p => s.holes.push(new T.Path(p)));
+    return new T.ExtrudeGeometry(s, { depth:h, bevelEnabled:false }).translate(0, 0, z0); };
+  // the panel's isogrid: rib nodes on a triangular lattice whose outer ring is the panel's edge
+  const node = (i, j) => new V3((i + j/2)*GS, j*GS*S3/2, 0);
+  const inHex = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= GRID_N;
+  function snap(p){ let best = null, bd = Infinity; const j0 = Math.round(p.y/(GS*S3/2));
+    for (let j = j0 - 1; j <= j0 + 1; j++){ const i0 = Math.round(p.x/GS - j/2);
+      for (let i = i0 - 1; i <= i0 + 1; i++) if (inHex(i, j)){ const n = node(i, j), d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd){ bd = d; best = n; } } }
+    return best; }
+  const ribSegs = [];
+  for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
+    for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)) ribSegs.push([node(i, j), node(i + di, j + dj)]);
+  // the delta frame's outline: a hexagon (edges facing 30 + 60k, like the panel) whose three edges facing the hinged edges run
+  // straight out as arms, each ending in a "[" notch that clamps a post. Points along its underside are for the clearance checks.
+  const deltaOut = [];
+  for (let k = 0; k < 6; k++){ const a = (30 + 60*k)*deg, u = dir2(a), t = dir2(a + PI/2), w = DL_HEX/S3;
+    const at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+    if (HINGED.includes(k)){ const ch = w - DL_TIP;   // flat end, outer corners cut back at 45°
+      deltaOut.push(at(DL_HEX, -w), at(DL_END - ch, -w), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(DL_END - ch, w)); }
+    else deltaOut.push(at(DL_HEX, -w)); }
+  // each arm's window: the arm's outline brought in WIN_M along its sides, end and 45° cut corners (an even rim there), closed
+  // off inside by a straight edge with smaller 45° corners. The actuator brackets stand just either side of it.
+  const WIN = (() => { const hw = DL_HEX/S3 - WIN_M, ro = DL_END - WIN_M, k = hw - (DL_END + DL_TIP - WIN_M*Math.SQRT2 - ro);
+    return { hw, ro, ri:WIN_RI, k }; })();
+  const armWindows = BASE.map(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+    const { hw, ro, ri, k } = WIN;
+    return [at(ri + WIN_KI, -hw), at(ro - k, -hw), at(ro, -hw + k), at(ro, hw - k), at(ro - k, hw), at(ri + WIN_KI, hw), at(ri, hw - WIN_KI), at(ri, -hw + WIN_KI)]; });
+  const deltaHole = Array.from({ length:6 }, (_, i) => dir2(i*PI/3).multiplyScalar(DL_HOLE*2/S3));
 
   // ---- parameters ----
-  const P = { fold:0, neck:0.16, drop:0.03, fill:0.9, tip:0, dir:30*deg, pis:0 };
+  const P = { fold:0, neck:0.13, drop:0.03, tip:0, dir:30*deg, pis:0 };
 
   // ---- materials and parts ----
   const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
@@ -147,85 +213,123 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const wedgeMat = new T.LineDashedMaterial({ dashSize:0.04, gapSize:0.03 });
   const part = (key, geo, angle) => { const g = new T.Group(), m = new T.Mesh(geo, fillMat); m.userData.key = key;
     g.add(m, new T.LineSegments(new T.EdgesGeometry(geo, angle || 20), lineMat(key))); return g; };
-  // a beam from a to b, `w` wide along `side` and `h` deep
-  const beam = (key, a, b, w, h, side) => { const d = new V3().subVectors(b, a), L = d.length(); d.normalize();
-    const g = part(key, new T.BoxGeometry(w, h, L)); g.position.copy(a).add(b).multiplyScalar(0.5);
-    g.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(side, new V3().crossVectors(d, side), d)); return g; };
   const outlineOf = obj => { const g = new T.Group();   // lines-only copy of a built part, for the neighbours
     obj.traverse(o => { if (o.isLineSegments) { const l = new T.LineSegments(o.geometry, lineMat('ghost')); o.updateMatrixWorld(true);
       l.matrixAutoUpdate = false; l.matrix.copy(o.matrixWorld); g.add(l); } }); return g; };
+  const footGeo = new T.CylinderGeometry(0.011, 0.011, FOOT_H, 10).rotateX(PI/2).translate(0, 0, -FOOT_H/2);
+  // a whiffle: a plate on feet that stand on rib nodes of the panel's back
+  function whiffle(key, outline, feet){
+    const g = new T.Group(); g.add(part(key, slab(outline, null, -H_W, H_W - FOOT_H)));
+    feet.forEach(f => { const m = part(key, footGeo, 40); m.position.set(f.x, f.y, 0); g.add(m); });
+    return g;
+  }
 
   const scene = new T.Scene(), root = new T.Group(); scene.add(root);
   let tile = null, panel = null, legs = [], ghosts = [], derived = {};
 
-  // the six actuators: three pairs, each pair close together on the frame and splitting to two different pairs on the panel
-  const LEG_SPREAD = [8, 52];
-  function legPoints(rl){
-    return [0, 1, 2].flatMap(k => [1, -1].map(sg => ({
-      b:new V3(Math.cos((120*k + LEG_SPREAD[0]*sg)*deg)*rl, Math.sin((120*k + LEG_SPREAD[0]*sg)*deg)*rl, -P.neck),
-      p:new V3(Math.cos((120*k + LEG_SPREAD[1]*sg)*deg)*rl, Math.sin((120*k + LEG_SPREAD[1]*sg)*deg)*rl, 0) })));
-  }
-
   // ---- build: everything that depends on the sizes ----
   function build(){
     root.remove(...root.children); legs = []; ghosts = [];
-    const zFf = -P.neck, zFb = zFf - FR_TH, zFm = zFf - FR_TH/2, zH = -P.drop;
-    const rfMax = (D_P + zFb)/K, rf = P.fill*rfMax;          // frame inradius: what fits the wedge at the frame's back, scaled
+    const zDb = -P.neck, zDt = zDb + H_D, zH = -P.drop, zLow = zDb - BODY_L;   // delta frame underside and top; hinge; bracket bottoms
+    // the delta frame fits its wedge when its widest reach (its arm ends, which face the hinged edges) is inside the wedge's
+    // hex at the bottom of the brackets hanging under it
+    const rfMax = (D_P + zLow)/K, dlReach = Math.max(...deltaOut.map(p => Math.max(...[0, 1, 2, 3, 4, 5].map(k => p.dot(dir2((30 + 60*k)*deg))))));
     const a = (D_P + zH)/K;                                   // hinge axis distance from the centre line (on the wedge plane)
-    derived = { zFf, zFb, zH, rf, rfMax, a };
+    const whPts = [];                                         // whiffle undersides, for the clearance check
+    derived = { zLow, zH, zDt, rfMax, dlReach, a, whPts };
 
+    // ---- fixed: the delta frame and the actuator bodies under it ----
     tile = new T.Group(); root.add(tile);
-    // frame: hex plate, ribbed open at the back
-    const frame = part('frame', hexPrism(rf, FR_TH)); frame.position.z = zFm; tile.add(frame);
-    const ribs = [], n = 3, s = rf*2/Math.sqrt(3)/n, inn = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= n;
-    const at = (i, j) => new V3((i + j/2)*s, j*s*Math.sqrt(3)/2, zFb - 0.001);
-    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) if (inn(i, j))
-      for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inn(i + di, j + dj)) ribs.push(at(i, j), at(i + di, j + dj));
-    tile.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(ribs), lineMat('frame')));
-    // hinge arms and knuckles on the three hinged edges
-    HINGED.forEach(k => {
-      const u = edgeU(k), t = new V3().crossVectors(zUp, u), hp = u.clone().multiplyScalar(a).setZ(zH);
-      const foot = u.clone().multiplyScalar(rf*0.8).setZ(zFm);
-      if (hp.distanceTo(foot) > 0.03) tile.add(beam('arm', foot, hp.clone().addScaledVector(u, -KN_R), 0.08, 0.03, t));
-      const kn = part('hinge', new T.CylinderGeometry(KN_R, KN_R, 0.12, 8).rotateX(PI/2), 50);
-      kn.position.copy(hp).addScaledVector(t, 0.07); kn.quaternion.setFromUnitVectors(zUp, t); tile.add(kn);
-    });
-    // panel: element plate, tipped about the centre of its back
+    derived.dlR = Math.max(...deltaOut.map(p => p.length()));
+    // delta frame: hexagon with three arms, open in the middle and through each arm
+    tile.add(part('delta', slab(deltaOut, [deltaHole, ...armWindows], zDb, H_D)));
+    // actuators: each body's legs stand on the solid rim either side of the window, inner and outer; its cylinder is midway,
+    // and the shaft runs from the cylinder's top up through the window to its ball under the whiffle
+    const rAct = (WIN.ri + WIN.ro)/2, xLeg = (WIN.ro - WIN.ri)/2;   // legs' inner faces on the window's inner and outer edges
+    // each pair leans together: a body is turned ACT_TILT about the arm's line, its top toward the other, and its shaft
+    // carries on along that same lean to the whiffle
+    const acts = BASE.flatMap(c => [1, -1].map(sg => { const u = dir3(c, 1), t = dir3(c + PI/2, 1);
+      const ax = new V3(0, 0, Math.cos(ACT_TILT)).addScaledVector(t, -sg*Math.sin(ACT_TILT));
+      const o = u.clone().multiplyScalar(rAct).addScaledVector(t, sg*BOT_T).setZ(zDb), m = o.clone().addScaledVector(ax, -0.01);
+      const p = m.clone().addScaledVector(ax, (-H_W - BALL_R - m.z)/ax.z);
+      return { sg, u, t, ax, o, p, m }; }));
+
+    // ---- moving: the panel and its whiffles, as one ----
     panel = new T.Group(); tile.add(panel);
-    const plate = part('panel', hexPrism(W_P/2, PL_TH)); plate.position.z = PL_TH/2; panel.add(plate);
-    const rp = W_P/2*0.9*2/Math.sqrt(3);
+    // face sheet, isogrid ribs behind it, element dots on the face
+    const sheet = part('panel', hexPrism(W_P/2, FS_TH)); sheet.position.z = PL_TH - FS_TH/2; panel.add(sheet);
+    const wall = [], bot = [];
+    ribSegs.forEach(([p, q]) => { wall.push(p.x,p.y,0, q.x,q.y,0, q.x,q.y,RIB_H, p.x,p.y,0, q.x,q.y,RIB_H, p.x,p.y,RIB_H); bot.push(p, q); });
+    const wg = new T.BufferGeometry(); wg.setAttribute('position', new T.Float32BufferAttribute(wall, 3));
+    const wm = new T.Mesh(wg, fillMat); wm.userData.key = 'panel'; panel.add(wm);
+    panel.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(bot), lineMat('panel')));
+    const rp = W_P/2*0.9*2/S3;
     panel.add(new T.Line(new T.BufferGeometry().setFromPoints(Array.from({ length:7 }, (_, i) =>
       new V3(Math.cos(i*PI/3)*rp, Math.sin(i*PI/3)*rp, PL_TH + 0.001))), lineMat('panel')));
-    const dots = [], pitch = 0.105, Rm = W_P/2*0.84*2/Math.sqrt(3), s3 = Math.sqrt(3);
-    for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){ const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
-      if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) dots.push(new V3(x, y, PL_TH + 0.002)); }
+    const dots = [], pitch = 0.105, Rm = W_P/2*0.84*2/S3;
+    for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){ const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*S3/2;
+      if (Math.abs(y) <= Rm*S3/2 && S3*Math.abs(x) + Math.abs(y) <= S3*Rm) dots.push(new V3(x, y, PL_TH + 0.002)); }
     panel.add(new T.Points(new T.BufferGeometry().setFromPoints(dots), dotMat));
-    // actuators: motor body on the frame, rod to the panel
-    const rl = Math.min(0.2, 0.75*rf), len0 = P.neck, body = Math.min(0.09, 0.45*len0);
-    const bodyGeo = new T.CylinderGeometry(0.014, 0.014, body, 8, 1).rotateX(PI/2).translate(0, 0, body/2);
-    const rodGeo = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
-    legPoints(rl).forEach(l => { const b = part('act', bodyGeo), r = part('act', rodGeo); tile.add(b, r); legs.push({ ...l, b0:b, r0:r }); });
-    // the wedge: rays from the shell centre through the panel's back corners, drawn from behind the frame to just past the panel
-    const wl = [], rc = (W_P + SEAM)/2*2/Math.sqrt(3), c0 = new V3(0, 0, -D_P);
+    // whiffles, one over each delta arm: three feet on a rib triangle and a trapezoid plate just round them, narrow end inward
+    BASE.forEach(c => { const u = dir3(c, 1), t = dir3(c + PI/2, 1), loc = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+      const feet = [loc(WH_R1, 0), loc(WH_R2, GS/2), loc(WH_R2, -GS/2)].map(snap);
+      const ri = WH_R1 - WH_M, ro = WH_R2 + WH_M, wi = WH_M, wo = GS/2 + WH_M*S3;
+      const out = [loc(ri, -wi), loc(ro, -wo), loc(ro, wo), loc(ri, wi)].map(p => new V2(p.x, p.y));
+      panel.add(whiffle('whiffle', out, feet));
+      out.forEach(p => whPts.push(new V3(p.x, p.y, -H_W)));
+    });
+
+    // two per whiffle, side by side. Each body is a squarish ∪ bracket hanging under the arm, its legs' tops on the solid
+    // rim inside and outside the window, with the cylinder standing in its middle (all fixed); the shaft is the only part
+    // that moves.
+    const at3 = (g, x, z) => { g.position.set(x, 0, z); return g; };
+    // the ∪ bracket, one piece: its profile along the arm (x) and up (z), legs' inner faces on the window's edges, outer
+    // bottom corners cut at 45° and the inside corners eased; given its depth across the arm (y), then the legs' tops cut
+    // so they sit flat on the arm's underside however the body leans
+    const uGeo = sg => { const a = xLeg, b = xLeg + U_T, L = BODY_L, kO = 0.014, kI = 0.005, d = BODY_D/2;
+      const prof = [[-b + kO, -L], [b - kO, -L], [b, -L + kO], [b, 0], [a, 0], [a, -L + U_T + kI], [a - kI, -L + U_T],
+        [-a + kI, -L + U_T], [-a, -L + U_T + kI], [-a, 0], [-b, 0], [-b, -L + kO]].map(([x, z]) => new V2(x, z));
+      const g = new T.ExtrudeGeometry(new T.Shape(prof), { depth:BODY_D, bevelEnabled:false }).translate(0, 0, -d)
+        .applyMatrix4(new T.Matrix4().makeBasis(new V3(1, 0, 0), new V3(0, 0, 1), new V3(0, 1, 0)));
+      const pos = g.attributes.position, tn = sg*Math.tan(ACT_TILT);
+      for (let i = 0; i < pos.count; i++) if (pos.getZ(i) > -1e-6) pos.setZ(i, -pos.getY(i)*tn);
+      return g; };
+    const uGeos = { 1:uGeo(1), '-1':uGeo(-1) };
+    const cylGeo = new T.CylinderGeometry(BODY_CYL, BODY_CYL, BODY_L - U_T - 0.01, 12, 1).rotateX(PI/2);
+    const rodGeo = new T.CylinderGeometry(ROD_R, ROD_R, 1, 8, 1).rotateX(PI/2).translate(0, 0, 0.5);
+    const ballGeo = new T.SphereGeometry(BALL_R, 10, 6);
+    acts.forEach(a => {
+      const top = part('act', ballGeo, 60); top.position.copy(a.p); panel.add(top);
+      const body = new T.Group();   // local: x out along the arm (across the two legs), y across the arm, z up
+      body.add(part('act', uGeos[a.sg]), at3(part('act', cylGeo, 40), 0, -(BODY_L - U_T + 0.01)/2));
+      body.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(a.u, new V3().crossVectors(a.ax, a.u), a.ax));
+      body.position.copy(a.o); tile.add(body);
+      const l = { b:a.m.clone(), p:a.p.clone() };
+      l.r0 = part('act', rodGeo); tile.add(l.r0); legs.push(l);
+    });
+
+    // the wedge: rays from the shell centre through the panel's back corners, drawn from behind the base to just past the panel
+    const wl = [], rc = (W_P + SEAM)/2*2/S3, c0 = new V3(0, 0, -D_P);
     for (let i = 0; i < 6; i++){ const c = new V3(Math.cos(i*PI/3)*rc, Math.sin(i*PI/3)*rc, 0), d = c.clone().sub(c0);
-      const p0 = c0.clone().addScaledVector(d, (D_P + zFb - 0.12)/D_P), p1 = c0.clone().addScaledVector(d, (D_P + 0.08)/D_P); wl.push(p0, p1); }
-    const wg = new T.LineSegments(new T.BufferGeometry().setFromPoints(wl), wedgeMat); wg.computeLineDistances(); root.add(wg);
+      const p0 = c0.clone().addScaledVector(d, (D_P + zLow - 0.12)/D_P), p1 = c0.clone().addScaledVector(d, (D_P + 0.08)/D_P); wl.push(p0, p1); }
+    const wedge = new T.LineSegments(new T.BufferGeometry().setFromPoints(wl), wedgeMat); wedge.computeLineDistances(); root.add(wedge);
     // neighbours: this tile, panel at rest, mirrored across each hinge's plane, then folded about the hinge axis
     setPanel(new T.Quaternion(), 0); tile.updateMatrixWorld(true);
     const flatPanel = outlineOf(tile);
     HINGED.forEach(k => { const g = flatPanel.clone(); g.matrixAutoUpdate = false; g.userData.k = k; root.add(g); ghosts.push(g); });
-    pose();
+    pose(); paint();
   }
 
   // ---- pose: panel tip and piston, actuators, neighbour fold ----
   const q = new T.Quaternion(), d = new V3(), M = new T.Matrix4(), Mr = new T.Matrix4(), Mt = new T.Matrix4();
-  // turn the panel about the centre of its back, lift it by pis, and run each actuator out to reach it; returns the leg lengths
+  // turn the panel (and its delta frame) about the centre of its back, lift it by pis, and run each actuator out to reach it
   function setPanel(qq, pis){
     panel.quaternion.copy(qq); panel.position.set(0, 0, pis);
     let lo = Infinity, hi = 0;
-    legs.forEach(l => { const top = l.p.clone().applyQuaternion(qq); top.z += pis; d.subVectors(top, l.b); const L = d.length(); d.divideScalar(L);
+    legs.forEach(l => { const top = l.p.clone().applyQuaternion(qq); top.z += pis; l.top = top; d.subVectors(top, l.b); const L = d.length(); d.divideScalar(L);
       lo = Math.min(lo, L); hi = Math.max(hi, L);
-      l.b0.position.copy(l.b); l.r0.position.copy(l.b); l.r0.scale.z = L; l.b0.quaternion.setFromUnitVectors(zUp, d); l.r0.quaternion.copy(l.b0.quaternion); });
+      // the body stays put; the shaft runs from its mouth to the ball under the whiffle
+      l.r0.position.copy(l.b); l.r0.scale.z = Math.max(0.001, L - BALL_R); l.r0.quaternion.setFromUnitVectors(zUp, d); });
     return [lo, hi];
   }
   function pose(){
@@ -244,52 +348,58 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   // ---- checks and readouts ----
   const $ = id => document.getElementById(id), mm = x => Math.round(x*1000) + ' mm';
   const mark = (id, txt, ok) => { const e = $(id); e.textContent = txt; e.className = ok === undefined ? '' : ok ? 'good' : 'bad'; };
+  const clear = (id, x, into) => mark(id, x >= 0 ? mm(x) : mm(-x) + ' ' + into, x >= 0);
+  const moved = p => { const r = p.clone().applyQuaternion(q); r.z += P.pis; return r; };
   function checks(lo, hi){
-    const { a, rf, rfMax, zH } = derived;
+    const { a, rfMax, dlReach, zDt, zLow, whPts, dlR } = derived;
     const gap = 2*a - W_P;
     mark('k-flat', gap >= 0 ? mm(gap) : mm(-gap) + ' overlap', gap >= 0);
-    // the panel's back right over each knuckle (it sits just inside the panel's edge), against the top of the knuckle
-    let clr = Infinity;
-    HINGED.forEach(k => { const u = edgeU(k), t = new V3().crossVectors(zUp, u);
-      for (const s of [0, 0.07, 0.14]){ const p = u.clone().multiplyScalar(Math.min(a, W_P/2)).addScaledVector(t, s).applyQuaternion(q);
-        clr = Math.min(clr, p.z + P.pis - (zH + KN_R)); } });
-    mark('k-tip', clr >= 0 ? mm(clr) : mm(-clr) + ' into it', clr >= 0);
-    mark('k-wedge', rf <= rfMax + 1e-9 ? mm(rfMax - rf) + ' spare' : 'no', rf <= rfMax + 1e-9);
-    mark('k-leg', mm(lo) + ' / ' + mm(hi));
-    $('d-frame').textContent = (2*rf).toFixed(2) + ' m';
+    // the whiffles' undersides, tipped, against the top of the (fixed) delta frame
+    clear('k-whf', Math.min(...whPts.map(p => moved(p).z)) - zDt, 'into it');
+    mark('k-wedge', dlReach <= rfMax + 1e-9 ? mm(rfMax - dlReach) + ' spare' : mm(dlReach - rfMax) + ' too wide', dlReach <= rfMax + 1e-9);
+    // each leg must stay between rod fully in and fully out
+    mark('k-leg', mm(lo) + ' / ' + mm(hi), lo >= L_MIN - 1e-6 && hi <= L_MAX + 1e-6);
+    $('d-delta').textContent = mm(DL_END);
+    $('k-range').textContent = mm(L_MIN) + ' / ' + mm(L_MAX);
     $('d-pitch').textContent = (2*a).toFixed(3) + ' m';
     $('d-fold').textContent = (FOLD/deg).toFixed(1) + '°';
-    $('d-ball').textContent = '⌀ ' + (2*Math.hypot(D_P + PL_TH, W_P/Math.sqrt(3))).toFixed(2) + ' m';
-    $('d-inner').textContent = '⌀ ' + (2*Math.hypot(D_P - P.neck, rf*2/Math.sqrt(3))).toFixed(2) + ' m';
+    $('d-ball').textContent = '⌀ ' + (2*Math.hypot(D_P + PL_TH, W_P/S3)).toFixed(2) + ' m';
+    $('d-inner').textContent = '⌀ ' + (2*Math.hypot(D_P + zLow, dlR)).toFixed(2) + ' m';
     ghosts.forEach(g => g.children.forEach(l => { l.material = gap < -0.001 && P.fold < 0.5 ? lineMat('clash') : lineMat('ghost'); }));
   }
 
   // ---- controls ----
   const sliders = {
     fold:[v => v/1000, v => (v*FOLD/deg).toFixed(1) + '°'],
-    neck:[v => v/1000, v => mm(v)], drop:[v => v/1000, v => mm(v)], fill:[v => v/100, v => Math.round(v*100) + '%'],
+    neck:[v => v/1000, v => mm(v)], drop:[v => v/1000, v => mm(v)],
     tip:[v => v/10*deg, v => (v/deg).toFixed(1) + '°'], dir:[v => v*deg, v => Math.round(v/deg) + '°'], pis:[v => v/1000, v => (v >= 0 ? '+' : '') + mm(v)],
   };
-  const rebuildOn = new Set(['neck', 'drop', 'fill']);
+  const rebuildOn = new Set(['neck', 'drop']);
   let foldGoal = null;
   Object.entries(sliders).forEach(([k, [read, show]]) => {
     const el = $(k), out = $('o-' + k);
     const sync = () => { P[k] = read(+el.value); out.textContent = show(P[k]); };
     el.addEventListener('input', () => {
       sync(); if (k === 'fold') { foldGoal = null; markFold(); }
-      if (k === 'neck') {   // the hinge can sit no deeper than the middle of the frame
-        const dmax = Math.round((P.neck + FR_TH/2)*1000), dr = $('drop'); dr.max = dmax;
+      if (k === 'neck') {   // the hinge can sit no deeper than the middle of the delta frame
+        const dmax = Math.round((P.neck - H_D/2)*1000), dr = $('drop'); dr.max = dmax;
         if (+dr.value > dmax) dr.value = dmax; P.drop = +dr.value/1000; $('o-drop').textContent = mm(P.drop); }
       rebuildOn.has(k) ? build() : pose();
     });
     sync();
   });
-  $('drop').max = Math.round((P.neck + FR_TH/2)*1000);
+  $('drop').max = Math.round((P.neck - H_D/2)*1000);
   const markFold = () => document.querySelectorAll('[data-fold]').forEach(b => b.setAttribute('aria-pressed', String(foldGoal === null ? +b.dataset.fold === P.fold : +b.dataset.fold === foldGoal)));
   const still = matchMedia('(prefers-reduced-motion: reduce)');
   document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () => {
     foldGoal = +b.dataset.fold; if (still.matches) { setFold(foldGoal); foldGoal = null; } markFold(); }));
   function setFold(v){ P.fold = v; $('fold').value = Math.round(v*1000); $('o-fold').textContent = sliders.fold[1](v); pose(); }
+  // parts list: point at a part to pick it out in the drawing
+  let hi = new Set();
+  document.querySelectorAll('#parts button').forEach(b => {
+    const on = () => { hi = new Set(b.dataset.keys.split(' ')); paint(); }, off = () => { hi = new Set(); paint(); };
+    b.addEventListener('pointerenter', on); b.addEventListener('focus', on); b.addEventListener('pointerleave', off); b.addEventListener('blur', off);
+  });
 
 
   // ---- renderer, camera, theme ----
@@ -311,7 +421,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); wedgeMat.color.set(c('--muted'));
     lineMat('ghost'); lineMat('clash');
     for (const k in lineMats){
-      const base = k === 'ghost' ? c('--dim') : k === 'clash' ? c('--accent') : c('--line');
+      const base = k === 'ghost' ? c('--dim') : k === 'clash' || hi.has(k) ? c('--accent') : c('--line');
       lineMats[k].color.set(base);
     }
   }
