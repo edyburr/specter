@@ -557,7 +557,6 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
           // a cooling scale: a thin pointed plate, hinged along its wide end, drawn lying along +y from the hinge
           scale: (() => { const w = this.body*Math.sin(PI/5)*0.82, L = this.depth*SCALE_L;
             return slab([[-w, 0], [w, 0], [0.62*w, 0.72*L], [0, L], [-0.62*w, 0.72*L]].map(([x, y]) => new T.Vector2(x, y)), null, 0, 0.004); })(),
-          puck: this.eared(),
           inset: new T.BufferGeometry().setFromPoints([0, 1, 2, 3, 4, 0].map(k => pentCorner(k, 0.88*this.puck).setZ(z))),
           dots: new T.BufferGeometry().setFromPoints(dots),
         };
@@ -566,16 +565,20 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     }
     // the face with a spoke ear on each corner: its outline runs out into a tapered tab at each corner, with a hex stud
     // standing on the tab front and back, like the ears on the tiles' rings. A spoke's ball joint seats on each stud.
-    static eared(){
+    // used: the corners a spoke lands on; only those get an ear. Faces with the same corners used share one shape
+    static eared(used){
+      const key = [...used].sort().join(), made = this._faces || (this._faces = {}); if (made[key]) return made[key];
       const out = [], items = [], stud = zCyl(0.014, 0.014, EAR_UP, 6);
       for (let k = 0; k < 5; k++){ const a = k*2*PI/5, C = new T.Vector2(Math.cos(a), Math.sin(a)), t = new T.Vector2(-C.y, C.x);
         const at = (r, w) => C.clone().multiplyScalar(r).addScaledVector(t, w), E = at(this.ear, 0);
+        if (!used.has(k)) { out.push(at(this.puck, 0)); continue; }   // a plain corner
         out.push(at(this.puck - 0.0206, -0.0283), at(this.ear + 0.012, -0.013), at(this.ear + 0.012, 0.013), at(this.puck - 0.0206, 0.0283));
         for (const sg of [-1, 1]) items.push([stud, new T.Matrix4().makeTranslation(E.x, E.y, sg*(PUCK_H + EAR_UP)/2), 40]); }
       items.unshift([slab(out, null, -PUCK_H/2, PUCK_H)]);
-      return done(fuse(items)).solid;
+      return made[key] = done(fuse(items)).solid;
     }
-    constructor(){
+    // used: the face corners that carry a spoke
+    constructor(used){
       super();
       const H = this.kind = this.constructor, s = H.shape, add = (n, geo, z) => {
         const p = part(H.key, geo, { name:`${H.label} ${n}` }); p.position.z = z; this.add(p); return p; };
@@ -590,7 +593,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         const base = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(t.clone().negate(), new V3(0, 0, -1), n));
         for (let row = 0; row < SCALE_ROWS; row++){ const sc = part(H.key, s.scale, { name:`${H.label} scale` });
           sc.position.copy(n).multiplyScalar(ap).setZ(H.depth*(0.96 - row*0.92/SCALE_ROWS)); this.add(sc); scales.push({ sc, base, row }); } }
-      const face = add('face', s.puck, H.reach + PUCK_H/2);
+      const face = add('face', H.eared(used), H.reach + PUCK_H/2);
       face.add(new T.Line(s.inset, lineMat(H.key)), new T.Points(s.dots, dotMat));
     }
     get reach(){ return this.kind.reach; }
@@ -692,7 +695,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const e2 = new V3().crossVectors(n0, e1), vi = (Math.round(Math.atan2(d.dot(e2), d.dot(e1))/(2*PI/5)) % 5 + 5) % 5;
       w.anchors.push({ f:a.f, loc:a.loc, vi }); a.f.addEar(a.k);
     });
-    w.obj = new T.Group(); w.horn = vib ? new HornA() : new HornB();
+    w.obj = new T.Group(); const usedCorners = new Set(w.anchors.map(an => an.vi)); w.horn = vib ? new HornA(usedCorners) : new HornB(usedCorners);
     w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.ear = w.horn.kind.ear; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
     // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a ball joint: a ball with a bore through
     // it, in a socket, so the fibre passes straight through and the joint seals while it swivels. A pair of spokes runs
@@ -808,7 +811,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
-    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
+    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face that a spoke lands on. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
     ['core',  'AEPEC core', 'A Dyson shell round a small singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons look inward, almost edge to edge; the 12 pentagons stand open, and the containment floats at the centre.'],
     ['shield', 'Shadow shield', 'One flat disc on the mast, midway between the core and the processors, which sit in its shadow.'],
