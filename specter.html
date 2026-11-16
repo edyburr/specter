@@ -723,7 +723,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         sxx += x*x; sxy += x*y; syy += y*y; sxz += x*z; syz += y*z;
       });
       const det = sxx*syy - sxy*sxy, cx = det > 1e-9 ? (sxz*syy - syz*sxy)/(2*det) : 0, cy = det > 1e-9 ? (syz*sxx - sxz*sxy)/(2*det) : 0;
-      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, Z_PL + PL_TH/2 - PUCK_H + w.anchors.reduce((a, an) => a + an.f.pis, 0)/w.anchors.length);   // centred on the anchors, face flush with the panels, wherever the dish has put them
+      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, Z_PL + PL_TH/2 - PUCK_H);   // centred on the anchors, face flush with the panels when they are flat. The spokes land on the fold frames, which do not move for the dish, so neither does the horn
       // clock the pentagon about its axis so the face corners face their anchors as closely as the cell allows
       let sx = 0, sy = 0;
       w.anchors.forEach(an => {
