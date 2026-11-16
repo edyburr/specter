@@ -285,11 +285,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     tile.add(part('ring', slab(hexPts(ringO), [ringHole], zDb, H_D)));
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
     // in a hex eye that stands proud of the ring top and bottom, with a spoke's ball joint seated on each end
-    const eyeGeo = new T.CylinderGeometry(EAR_R, EAR_R, H_D + 2*EAR_P, 6).rotateX(PI/2), nodeGeo = new T.IcosahedronGeometry(NODE_R, 0);
+    const eyeGeo = new T.CylinderGeometry(EAR_R, EAR_R, EAR_P, 6).rotateX(PI/2), nodeGeo = new T.IcosahedronGeometry(NODE_R, 0);
     hexPts(ringO).forEach((C, k) => { const pe = k % 2 ? k : k - 1, e = dir2((30 + 60*pe)*deg), along = dir2((30 + 60*pe)*deg + (k % 2 ? PI/2 : -PI/2));
       const at = (x, h) => C.clone().addScaledVector(along, x).addScaledVector(e, h), eye = at(0.0575, EAR_H - 0.008);
-      const g = part('node', eyeGeo, 40); g.position.set(eye.x, eye.y, (zDb + zDt)/2);
-      tile.add(part('node', slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, zDb, H_D)), g);
+      tile.add(part('node', slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, zDb, H_D)));
+      [zDb - EAR_P/2, zDt + EAR_P/2].forEach(z => { const g = part('node', eyeGeo, 40); g.position.set(eye.x, eye.y, z); tile.add(g); });   // a stud on each face of the tab
       [zDb - EAR_P, zDt + EAR_P].forEach(z => { const n = part('node', nodeGeo, 1); n.position.set(eye.x, eye.y, z); tile.add(n); }); });
     const lugGeo = new T.ExtrudeGeometry(new T.Shape([[ringO, zDb], [a, zH - HG_R], [a, zH + HG_R], [ringO, zDt]].map(([x, z]) => new V2(x, z))),
       { depth:HG_T1 - HG_T0, bevelEnabled:false }).translate(0, 0, HG_T0).applyMatrix4(new T.Matrix4().makeBasis(new V3(1, 0, 0), new V3(0, 0, 1), new V3(0, 1, 0)));

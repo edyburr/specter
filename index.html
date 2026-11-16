@@ -152,6 +152,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
   const TILT = 6*Math.PI/180;    // how far the outermost panel tips for a concave or convex face. The lift it needs grows with this: about 105 mm at 6°
   const Z_CORE = 0.10;           // centre of the core shell
+  const CORE_T = 0.018;          // thickness of the core's collector plates; the mast and spine end on their outer faces
   const CORE_S = 0.24;           // core shell: the outer shell at 24% scale
 
   // ---- materials ----
@@ -273,7 +274,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let k = 0; k < 6; k++){ const C = dir2(k*PI/3).multiplyScalar(RING_O*2/S3), pe = k % 2 ? k : k - 1;   // pe: the port edge at this corner
       const e = dir2((30 + 60*pe)*deg), along = dir2((30 + 60*pe)*deg + (k % 2 ? PI/2 : -PI/2));        // out of the edge; along it, away from the corner
       const at = (x, h) => C.clone().addScaledVector(along, x).addScaledVector(e, h), eye = at(0.0575, EAR_H - 0.008);
-      frame.push([slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, ZB, FR_TH)], [zCyl(EAR_R, EAR_R, 2*EAR_Z, 6), move(eye.x, eye.y, 0), 40]);
+      frame.push([slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, ZB, FR_TH)], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, (EAR_Z + FR_TH/2)/2), 40], [zCyl(EAR_R, EAR_R, EAR_Z - FR_TH/2, 6), move(eye.x, eye.y, -(EAR_Z + FR_TH/2)/2), 40]);
       ears.push(new V3(eye.x, eye.y, 0)); }
     const deltaOut = [];
     for (let k = 0; k < 6; k++){ const a = (30 + 60*k)*deg, u = dir2(a), t = dir2(a + PI/2), w = DL_HEX/S3;
@@ -426,7 +427,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const items = [], put = v => v.clone().multiplyScalar(CORE_S).setZ(v.z*CORE_S + Z_CORE), one = new V3(1, 1, 1);
     tiles.forEach(f => {
       const plate = new T.Matrix4().compose(put(f.c), f.qs, one);
-      items.push([hexPrism(A*CORE_S*0.96, 0.018), plate]); });   // collector plate, almost edge to edge with its neighbours
+      items.push([hexPrism(A*CORE_S*0.96, CORE_T), plate]); });   // collector plate, almost edge to edge with its neighbours
     items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // containment
     lump('core', 'Core', items);
   })();
@@ -462,7 +463,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const axial = (key, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6)); o.position.z = (z0 + z1)/2; root.add(o); return o; };
   // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
   axial('aft', 0.18, Z_AFT, Z_AFT + REF_H);
-  axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A);   // spine: isolation strut from the housing to the core, the capacitor cells stand round it
+  axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A - CORE_T/2);   // spine: isolation strut from the housing to the core, the capacitor cells stand round it
 
   // ---- capacitor bank ----
   // The core is small: it trickles power out, far too slowly to drive the array. So the craft stores it. Six hexagonal
@@ -479,7 +480,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         [sg > 0 ? zCyl(0.5*RC, RC, CAP, 6) : zCyl(RC, 0.5*RC, CAP, 6), at(x, y, ZC + sg*(L/2 + CAP/2))],   // tapered ends
         [zCyl(0.028, 0.028, POST, 6), at(x, y, ZC + sg*(L/2 + CAP + POST/2)), 40]); }                       // terminal posts, up to the bus decks
     // the cage, like the processor cluster's: a bus deck at each end, a strap round the middle, six rails at the corners
-    for (const sg of [-1, 1]) items.push([slab(hex(0.43), [hex(0.075)], 0, DECK), at(0, 0, ZC + sg*top + (sg > 0 ? 0 : -DECK))]);
+    for (const sg of [-1, 1]) items.push([slab(hex(0.43), [hex(0.05)], 0, DECK), at(0, 0, ZC + sg*top + (sg > 0 ? 0 : -DECK))]);   // hole cut to the spine
     items.push([slab(hex(0.43), [hex(0.4)], 0, 0.02), at(0, 0, ZC - 0.01)]);
     hex(0.405).forEach(c => items.push([zCyl(0.011, 0.011, 2*top, 6), at(c.x, c.y, ZC), 40]));
     lump('cap', 'Capacitor bank', items); })();
@@ -487,7 +488,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // ---- shadow shield ----
   // The calyx, back where it earns its place: one flat hexagonal disc on the mast, midway between the core and the processors. Whatever the
   // core throws forward meets it first, so the processors sit in its shadow. Only the mast passes through.
-  axial('shield', 0.3, Z_CORE_F + 0.075, Z_CORE_F + 0.095).children[0].name = 'Shadow shield';
+  (() => { const hex = r => Array.from({ length:6 }, (_, i) => new T.Vector2(Math.cos((30 + 60*i)*PI/180)*r, Math.sin((30 + 60*i)*PI/180)*r));
+    lump('shield', 'Shadow shield', [[slab(hex(0.3), [hex(0.04)], Z_CORE_F + 0.075, 0.02)]]); })();   // the hole is cut to the mast
 
   // ---- processor cluster ----
   // The computer is a cluster: many small nodes working side by side, because the work is parallel. Nineteen tiles to
@@ -498,7 +500,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   (() => { const z0 = Z_CORE_F + 0.17, z1 = Z_FRONT - 0.15, TIERS = 3, DECK = 0.012, S3 = Math.sqrt(3), items = [];
     const R_DECK = 0.28, R_RAIL = 0.262, N_IN = 0.1, N_OUT = 0.215, GAP = 0.022;   // deck and rail circumradius; a node's inner and outer face (inradius); half the gap between nodes
     const hex = r => Array.from({ length:6 }, (_, i) => new T.Vector2(Math.cos((30 + 60*i)*PI/180)*r, Math.sin((30 + 60*i)*PI/180)*r));   // flats face 0, 60, ...
-    const tierH = (z1 - z0 - DECK)/TIERS, deck = slab(hex(R_DECK), [hex(0.075)], 0, DECK);
+    const tierH = (z1 - z0 - DECK)/TIERS, deck = slab(hex(R_DECK), [hex(0.04)], 0, DECK);   // each deck's hole is cut to the mast
     for (let i = 0; i <= TIERS; i++) items.push([deck, new T.Matrix4().makeTranslation(0, 0, z0 + i*tierH)]);
     hex(R_RAIL).forEach(c => items.push([zCyl(0.011, 0.011, z1 - z0, 6), new T.Matrix4().makeTranslation(c.x, c.y, (z0 + z1)/2), 40]));
     // a node: a wedge-shaped box filling one side of the cage, its outer corners cut back
@@ -555,14 +557,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       }
       return this._shape;
     }
-    // the face with a spoke ear on each corner: a tapered tab out to a hex eye that stands proud front and back, like the
-    // ears on the tiles' rings. A spoke's ball joint seats on each end of the eye.
+    // the face with a spoke ear on each corner: its outline runs out into a tapered tab at each corner, with a hex stud
+    // standing on the tab front and back, like the ears on the tiles' rings. A spoke's ball joint seats on each stud.
     static eared(){
-      const items = [[pent(this.puck, this.puck, PUCK_H)]];
+      const out = [], items = [], stud = zCyl(0.014, 0.014, EAR_UP, 6);
       for (let k = 0; k < 5; k++){ const a = k*2*PI/5, C = new T.Vector2(Math.cos(a), Math.sin(a)), t = new T.Vector2(-C.y, C.x);
         const at = (r, w) => C.clone().multiplyScalar(r).addScaledVector(t, w), E = at(this.ear, 0);
-        items.push([slab([at(this.puck - 0.0206, 0.0283), at(this.ear, 0.011), at(this.ear, -0.011), at(this.puck - 0.0206, -0.0283)], null, -PUCK_H/2, PUCK_H)],
-          [zCyl(0.014, 0.014, PUCK_H + 2*EAR_UP, 6), new T.Matrix4().makeTranslation(E.x, E.y, 0), 40]); }
+        out.push(at(this.puck - 0.0206, -0.0283), at(this.ear + 0.012, -0.013), at(this.ear + 0.012, 0.013), at(this.puck - 0.0206, 0.0283));
+        for (const sg of [-1, 1]) items.push([stud, new T.Matrix4().makeTranslation(E.x, E.y, sg*(PUCK_H + EAR_UP)/2), 40]); }
+      items.unshift([slab(out, null, -PUCK_H/2, PUCK_H)]);
       return done(fuse(items)).solid;
     }
     constructor(){
@@ -758,7 +761,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     f.obj.add(h);
   });
   axial('hinge', 0.13, Z_FRONT - 0.03, Z_FRONT);   // its flange, closing the opening in the front tile's delta frame
-  axial('hinge', 0.04, Z_CORE_F, Z_FRONT - 0.03);   // centre mast: core to the back of the front tile. Every signal comes home through it
+  axial('hinge', 0.04, Z_CORE_F + CORE_T/2, Z_FRONT - 0.03);   // centre mast: core to the back of the front tile. Every signal comes home through it
 
   // ---- renderer, camera, controls ----
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
