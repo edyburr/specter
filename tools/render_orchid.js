@@ -34,7 +34,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
 
 // Exploded view. Pieces in order along the axis, each with the gap (in model units) left before it. The array stays
 // whole: tiles, horns and wires as they are when open.
-const ORDER = [['cap',0],['ref',1.3],['spine',1],['bank',1],['core',1],['dsp',1],['mast',1],['array',1.9]];
+const ORDER = [['cap',0],['ref',1.3],['spine',1],['bank',1],['core',1],['shield',0.6],['dsp',1],['mast',1],['array',1.9]];
 // One note per leader: piece, part key to point at within it (or null), name, then what it is and what it does
 // (written as printed: lowercase, but GHz and proper names keep their capitals), and how the leader runs.
 // Plain: straight down to the row of notes under the axis. 'left': out sideways from the part, then down to the row;
@@ -46,6 +46,7 @@ const NOTES = [
   ['spine', null, 'tail boom', 'isolates the mass from the core'],
   ['bank', null, 'capacitor bank', 'stores the charge for one hit'],
   ['core', null, 'AEPEC', 'power source'],
+  ['shield', null, 'shadow shield', 'keeps the core off the processors'],
   ['dsp', null, 'processor cluster', 'eighteen nodes in parallel'],
   ['mast', null, 'keystone boom', 'joins core to front tile'],
   ['horns', 'harm', 'vibrometry horn', '10 GHz receive', 'left'],
@@ -75,6 +76,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
     else if (k === 'frame' || k === 'tiles' || k === 'act') put('array');
     else if (k === 'core') put('core');
     else if (k === 'dsp') put('dsp');
+    else if (k === 'shield') put('shield');
     else if (k === 'hinge') put('mast');
     else if (k === 'vib' || k === 'harm') { put('array'); horns.push(o); }
     else skipped.push(k);
