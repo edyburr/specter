@@ -91,26 +91,30 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       </div>
       <div><label for="fold">Fold <output id="o-fold"></output></label><input type="range" id="fold" min="0" max="1000" value="0"></div>
       <div><label for="neck">Neck: delta frame to panel <output id="o-neck"></output></label><input type="range" id="neck" min="100" max="300" value="130"></div>
-      <div><label for="drop">Hinge axis below panel <output id="o-drop"></output></label><input type="range" id="drop" min="0" max="420" value="30"></div>
+      <div><label for="drop">Hinge axis below panel <output id="o-drop"></output></label><input type="range" id="drop" min="0" max="420" value="115"></div>
       <div><label for="tip">Panel tip <output id="o-tip"></output></label><input type="range" id="tip" min="-120" max="120" value="0"></div>
       <div><label for="dir">Tip direction <output id="o-dir"></output></label><input type="range" id="dir" min="0" max="360" value="30"></div>
-      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-30" max="30" value="0"></div>
+      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-60" max="60" value="0"></div>
     </section>
 
     <section>
-      <h2>Parts, panel to delta frame</h2>
+      <h2>Parts, panel to hinge</h2>
       <ul class="parts" id="parts">
         <li><button type="button" data-keys="panel">Panel <small>×1</small><span>Element face on an isogrid back of triangular pockets.</span></button></li>
         <li><button type="button" data-keys="whiffle">Whiffles <small>×3</small><span>Trapezoidal pads, each bonded to the panel's rib nodes at three feet, so nothing pushes on one spot. Moved by the actuators.</span></button></li>
         <li><button type="button" data-keys="act">Actuators <small>×6</small><span>Two per whiffle, side by side under each arm. Each is a squarish ∪ bracket hanging under the arm, its legs standing on the solid frame either side of the window, with a cylinder upright in its middle, all fixed; and a shaft that runs from the cylinder up through the window to the whiffle, the only part that moves. Together they tip, turn and piston the panel.</span></button></li>
-        <li><button type="button" data-keys="delta">Delta frame <small>×1</small><span>Fixed, the tile's base. A hexagon whose three edges facing the hinged edges run out as flat-ended arms, each with a window through it that follows its outline. Carries the actuators.</span></button></li>
+        <li><button type="button" data-keys="delta">Delta frame <small>×1</small><span>Fixed, the tile's base and its share of the backplane: tiles join delta frame to delta frame, never panel to panel. A hexagon whose three edges facing the hinged edges run out as flat-ended arms, each with a window through it that follows its outline. Carries the actuators.</span></button></li>
+        <li><button type="button" data-keys="lock">Launch locks <small>×3</small><span>Posts on the delta frame, between the arms, under rib nodes. For launch the actuators pull the panel 12.5 mm down onto them, so the shaking goes through the posts and not the actuators; in orbit they lift it back off.</span></button></li>
+        <li><button type="button" data-keys="hinge">Hinge fittings <small>×3</small><span>Half a hinge on the end of each arm: a lug out to a barrel on the hinge axis, and a drive can beyond it. The neighbour's half sits beside it on the same pin, so every tile is the same part and each hinge has two drives. Where two tiles touch only in the ball, the same two halves take a launch pin that is pulled to let the net open.</span></button></li>
       </ul>
     </section>
 
     <section>
       <h2>Checks</h2>
       <dl>
-        <dt>Gap to neighbour panel, flat</dt><dd id="k-flat"></dd>
+        <dt>Seam between panels, open / stowed</dt><dd id="k-flat"></dd>
+        <dt>Panel on its launch locks</dt><dd id="k-lock"></dd>
+        <dt>Panel edge to hinge drives, at this tip</dt><dd id="k-hinge"></dd>
         <dt>Whiffles to delta frame, at this tip</dt><dd id="k-whf"></dd>
         <dt>Delta frame inside its wedge, stowed</dt><dd id="k-wedge"></dd>
         <dt>Actuator length, min / max</dt><dd id="k-leg"></dd>
@@ -123,7 +127,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <dl>
         <dt>Panel, flat to flat</dt><dd>1.00 m</dd>
         <dt>Delta frame, centre to arm end</dt><dd id="d-delta"></dd>
-        <dt>Hinge pitch when flat</dt><dd id="d-pitch"></dd>
+        <dt>Hinge pitch, open</dt><dd id="d-pitch"></dd>
         <dt>Fold angle per hinge</dt><dd id="d-fold"></dd>
         <dt>Stowed ball, panels</dt><dd id="d-ball"></dd>
         <dt>Stowed ball, delta frames</dt><dd id="d-inner"></dd>
@@ -145,9 +149,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   // Hex faces of a truncated icosahedron: distance from the centre = K x half the face's flat-to-flat, K = golden ratio squared.
   // Neighbouring hex faces are FOLD apart.
   const PHIG = (1 + Math.sqrt(5))/2, K = PHIG*PHIG, FOLD = 2*Math.atan(1/K);
-  const W_P = 1.00, PL_TH = 0.02, FS_TH = 0.006, SEAM = 0.01;  // panel flat to flat and depth, its face sheet, seam between stowed panels
+  const W_P = 1.00, PL_TH = 0.02, FS_TH = 0.006;   // panel flat to flat and depth, its face sheet
+  // Open, the panels sit G_FLAT apart (JWST's segments: about 7 mm). That fixes the hinge pitch, and so where each hinge
+  // axis is. A hinge below the panel swings the panels apart as the net folds back into the ball, so the stowed seam is
+  // wider than the open one: the deeper the hinge, the wider. Panels can never overlap; the price is a bigger ball.
+  const G_FLAT = 0.007, HINGE_A = (W_P + G_FLAT)/2;   // hinge axis to the tile's centre line, open
+  const LOCK = 0.0125;                                // stowed, the panel is pulled this far down onto its launch locks (JWST: 12.5 mm)
   const RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = W_P/S3/GRID_N;  // isogrid: ribs behind the face sheet, GRID_N pockets corner to centre
-  const D_P = K*(W_P + SEAM)/2;                    // shell centre to the panel's back
+  let D_P = 0;                                      // shell centre to the panel's back; set in build() from the hinge depth
   const HINGED = [0, 2, 4];                         // the three edges that hinge (edge k faces 30 + 60k degrees)
   const edgeU = k => new V3(Math.cos((30 + 60*k)*deg), Math.sin((30 + 60*k)*deg), 0);
   // The mount, after the JWST segments. Fixed: the delta frame, the tile's base, whose three arms each have a window through
@@ -169,6 +178,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness; round hub where the cylinder docks
   const ROD_R = 0.006, STROKE = 0.06;                // shaft, how far it runs
   const L_MIN = 0.07, L_MAX = L_MIN + STROKE;        // body mouth to shaft ball centre, shaft in and out
+  // Hinge fittings: the delta frame is also the backplane, the only thing that joins one tile to the next. Each arm ends in
+  // half a hinge: a lug from the arm's end to a barrel on the hinge axis, on one side of the arm's centre line, with the
+  // drive beyond it. The neighbour is this tile turned half a turn about the middle of the shared edge, so its half lands
+  // on the other side and the two interleave on one pin.
+  const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06;   // barrel radius; the lug and barrel run from HG_T0 to HG_T1 off the centre line
+  const MOT_R = 0.02, MOT_L = 0.045;                 // hinge drive: a can on the axis, outboard of the barrel
+  // Launch locks: three posts on the delta frame, between the arms. Stowed, the actuators pull the panel down onto them.
+  const LOCK_DIRS = [90, 210, 330].map(x => x*deg), LOCK_R = 0.14;
 
   const hexPrism = (inr, h) => { const r = inr*2/S3;   // inradius in; vertex 0 on +x, axis z
     return new T.CylinderGeometry(r, r, h, 6, 1).applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0))); };
@@ -204,7 +221,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const deltaHole = Array.from({ length:6 }, (_, i) => dir2(i*PI/3).multiplyScalar(DL_HOLE*2/S3));
 
   // ---- parameters ----
-  const P = { fold:0, neck:0.13, drop:0.03, tip:0, dir:30*deg, pis:0 };
+  const P = { fold:0, neck:0.13, drop:0.115, tip:0, dir:30*deg, pis:0 };
 
   // ---- materials and parts ----
   const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
@@ -230,19 +247,37 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   // ---- build: everything that depends on the sizes ----
   function build(){
     root.remove(...root.children); legs = []; ghosts = [];
+    D_P = K*HINGE_A + P.drop;                                 // the hinge axis lies in the wedge's side: HINGE_A = (D_P - drop)/K
     const zDb = -P.neck, zDt = zDb + H_D, zH = -P.drop, zLow = zDb - BODY_L;   // delta frame underside and top; hinge; bracket bottoms
     // the delta frame fits its wedge when its widest reach (its arm ends, which face the hinged edges) is inside the wedge's
     // hex at the bottom of the brackets hanging under it
     const rfMax = (D_P + zLow)/K, dlReach = Math.max(...deltaOut.map(p => Math.max(...[0, 1, 2, 3, 4, 5].map(k => p.dot(dir2((30 + 60*k)*deg))))));
-    const a = (D_P + zH)/K;                                   // hinge axis distance from the centre line (on the wedge plane)
+    const a = HINGE_A;                                        // hinge axis distance from the centre line (on the wedge plane)
     const whPts = [];                                         // whiffle undersides, for the clearance check
-    derived = { zLow, zH, zDt, rfMax, dlReach, a, whPts };
+    const lockPts = LOCK_DIRS.map(c => snap(dir3(c, LOCK_R)));   // the locks stand under rib nodes
+    // the panel's back along each hinged edge, above the hinge fitting: for the clearance check
+    const edgePts = BASE.flatMap(c => [-0.11, 0, 0.11].map(s => dir3(c, W_P/2).addScaledVector(dir3(c + PI/2, 1), s)));
+    derived = { zLow, zH, zDt, rfMax, dlReach, a, whPts, lockPts, edgePts };
 
     // ---- fixed: the delta frame and the actuator bodies under it ----
     tile = new T.Group(); root.add(tile);
     derived.dlR = Math.max(...deltaOut.map(p => p.length()));
     // delta frame: hexagon with three arms, open in the middle and through each arm
     tile.add(part('delta', slab(deltaOut, [deltaHole, ...armWindows], zDb, H_D)));
+    // hinge fittings, one on each arm's end: lug, barrel on the hinge axis, drive can beyond it. Built in the arm's own
+    // frame (x out along the arm, y along the hinge, z up). The lug runs from the arm's end face to the barrel, so it is a
+    // straight tongue when the hinge is level with the delta frame and a gooseneck when the hinge is higher.
+    const lugGeo = new T.ExtrudeGeometry(new T.Shape([[DL_END, zDb], [a, zH - HG_R], [a, zH + HG_R], [DL_END, zDt]].map(([x, z]) => new V2(x, z))),
+      { depth:HG_T1 - HG_T0, bevelEnabled:false }).translate(0, 0, HG_T0).applyMatrix4(new T.Matrix4().makeBasis(new V3(1, 0, 0), new V3(0, 0, 1), new V3(0, 1, 0)));
+    const barrelGeo = new T.CylinderGeometry(HG_R, HG_R, HG_T1 - HG_T0, 16).translate(a, (HG_T0 + HG_T1)/2, zH);
+    const motGeo = new T.CylinderGeometry(MOT_R, MOT_R, MOT_L, 18).translate(a, HG_T1 + MOT_L/2, zH);
+    BASE.forEach(c => { const g = new T.Group(); g.add(part('hinge', lugGeo), part('hinge', barrelGeo, 40), part('hinge', motGeo, 40));
+      g.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(dir3(c, 1), dir3(c + PI/2, 1), zUp)); tile.add(g); });
+    // launch locks: a tapered post with a cup on top, LOCK short of the panel's back
+    const postH = -LOCK - 0.004 - zDt;
+    const postGeo = new T.CylinderGeometry(0.007, 0.015, postH, 12).rotateX(PI/2).translate(0, 0, zDt + postH/2);
+    const cupGeo = new T.CylinderGeometry(0.013, 0.009, 0.004, 12).rotateX(PI/2).translate(0, 0, -LOCK - 0.002);
+    lockPts.forEach(p => { const g = new T.Group(); g.add(part('lock', postGeo, 40), part('lock', cupGeo, 40)); g.position.set(p.x, p.y, 0); tile.add(g); });
     // actuators: each body's legs stand on the solid rim either side of the window, inner and outer; its cylinder is midway,
     // and the shaft runs from the cylinder's top up through the window to its ball under the whiffle
     const rAct = (WIN.ri + WIN.ro)/2, xLeg = (WIN.ro - WIN.ri)/2;   // legs' inner faces on the window's inner and outer edges
@@ -311,11 +346,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     });
 
     // the wedge: rays from the shell centre through the panel's back corners, drawn from behind the base to just past the panel
-    const wl = [], rc = (W_P + SEAM)/2*2/S3, c0 = new V3(0, 0, -D_P);
+    const wl = [], rc = D_P/K*2/S3, c0 = new V3(0, 0, -D_P);
     for (let i = 0; i < 6; i++){ const c = new V3(Math.cos(i*PI/3)*rc, Math.sin(i*PI/3)*rc, 0), d = c.clone().sub(c0);
       const p0 = c0.clone().addScaledVector(d, (D_P + zLow - 0.12)/D_P), p1 = c0.clone().addScaledVector(d, (D_P + 0.08)/D_P); wl.push(p0, p1); }
     const wedge = new T.LineSegments(new T.BufferGeometry().setFromPoints(wl), wedgeMat); wedge.computeLineDistances(); root.add(wedge);
-    // neighbours: this tile, panel at rest, mirrored across each hinge's plane, then folded about the hinge axis
+    // neighbours: this tile, panel at rest, turned half a turn about the middle of each shared edge, then folded about the hinge axis
     setPanel(new T.Quaternion(), 0); tile.updateMatrixWorld(true);
     const flatPanel = outlineOf(tile);
     HINGED.forEach(k => { const g = flatPanel.clone(); g.matrixAutoUpdate = false; g.userData.k = k; root.add(g); ghosts.push(g); });
@@ -340,8 +375,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     const [lo, hi] = setPanel(q, P.pis);
     const { a, zH } = derived;
     ghosts.forEach(g => { const u = edgeU(g.userData.k), t = new V3().crossVectors(zUp, u), hp = u.clone().multiplyScalar(a).setZ(zH);
-      // mirror across the plane through the hinge axis, normal u; then turn about the axis, down toward the shell centre
-      const m = new T.Matrix4().set(1 - 2*u.x*u.x, -2*u.x*u.y, 0, 0,  -2*u.x*u.y, 1 - 2*u.y*u.y, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1);
+      // half a turn about the upright line through the middle of the hinge, which lays this tile's hinge half beside the
+      // neighbour's; then turn about the hinge axis, down toward the shell centre
+      const m = new T.Matrix4().makeRotationZ(PI);
       M.makeTranslation(-hp.x, -hp.y, -hp.z).premultiply(m).premultiply(Mr.makeRotationAxis(t, P.fold*FOLD)).premultiply(Mt.makeTranslation(hp.x, hp.y, hp.z));
       g.matrix.copy(M); });
     checks(lo, hi);
@@ -353,9 +389,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const clear = (id, x, into) => mark(id, x >= 0 ? mm(x) : mm(-x) + ' ' + into, x >= 0);
   const moved = p => { const r = p.clone().applyQuaternion(q); r.z += P.pis; return r; };
   function checks(lo, hi){
-    const { a, rfMax, dlReach, zDt, zLow, whPts, dlR } = derived;
-    const gap = 2*a - W_P;
-    mark('k-flat', gap >= 0 ? mm(gap) : mm(-gap) + ' overlap', gap >= 0);
+    const { rfMax, dlReach, zDt, zH, zLow, whPts, lockPts, edgePts, dlR } = derived;
+    // seam between panels: open, and stowed with the panels down on their locks
+    $('k-flat').textContent = mm(G_FLAT) + ' / ' + mm(2*(D_P - LOCK)/K - W_P);
+    // the panel's back over each launch lock: on it, off it, or pushed into it
+    const off = Math.min(...lockPts.map(p => moved(p).z)) + LOCK;
+    mark('k-lock', Math.abs(off) < 2e-4 ? 'seated' : off > 0 ? (off*1000).toFixed(1) + ' mm off' : (-off*1000).toFixed(1) + ' mm into them', off > -2e-4);
+    // the panel's hinged edges, tipped, against the top of the hinge drives below them
+    clear('k-hinge', Math.min(...edgePts.map(p => moved(p).z)) - (zH + MOT_R), 'into them');
     // the whiffles' undersides, tipped, against the top of the (fixed) delta frame
     clear('k-whf', Math.min(...whPts.map(p => moved(p).z)) - zDt, 'into it');
     mark('k-wedge', dlReach <= rfMax + 1e-9 ? mm(rfMax - dlReach) + ' spare' : mm(dlReach - rfMax) + ' too wide', dlReach <= rfMax + 1e-9);
@@ -363,18 +404,17 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     mark('k-leg', mm(lo) + ' / ' + mm(hi), lo >= L_MIN - 1e-6 && hi <= L_MAX + 1e-6);
     $('d-delta').textContent = mm(DL_END);
     $('k-range').textContent = mm(L_MIN) + ' / ' + mm(L_MAX);
-    $('d-pitch').textContent = (2*a).toFixed(3) + ' m';
+    $('d-pitch').textContent = (2*HINGE_A).toFixed(3) + ' m';
     $('d-fold').textContent = (FOLD/deg).toFixed(1) + '°';
-    $('d-ball').textContent = '⌀ ' + (2*Math.hypot(D_P + PL_TH, W_P/S3)).toFixed(2) + ' m';
+    $('d-ball').textContent = '⌀ ' + (2*Math.hypot(D_P - LOCK + PL_TH, W_P/S3)).toFixed(2) + ' m';
     $('d-inner').textContent = '⌀ ' + (2*Math.hypot(D_P + zLow, dlR)).toFixed(2) + ' m';
-    ghosts.forEach(g => g.children.forEach(l => { l.material = gap < -0.001 && P.fold < 0.5 ? lineMat('clash') : lineMat('ghost'); }));
   }
 
   // ---- controls ----
   const sliders = {
     fold:[v => v/1000, v => (v*FOLD/deg).toFixed(1) + '°'],
     neck:[v => v/1000, v => mm(v)], drop:[v => v/1000, v => mm(v)],
-    tip:[v => v/10*deg, v => (v/deg).toFixed(1) + '°'], dir:[v => v*deg, v => Math.round(v/deg) + '°'], pis:[v => v/1000, v => (v >= 0 ? '+' : '') + mm(v)],
+    tip:[v => v/10*deg, v => (v/deg).toFixed(1) + '°'], dir:[v => v*deg, v => Math.round(v/deg) + '°'], pis:[v => v/2000, v => (v >= 0 ? '+' : '−') + Math.abs(v*1000).toFixed(1) + ' mm'],
   };
   const rebuildOn = new Set(['neck', 'drop']);
   let foldGoal = null;
@@ -421,9 +461,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     const cs = getComputedStyle(document.documentElement), c = n => cs.getPropertyValue(n).trim();
     renderer.setClearColor(new T.Color(c('--bg')));
     fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); wedgeMat.color.set(c('--muted'));
-    lineMat('ghost'); lineMat('clash');
+    lineMat('ghost');
     for (const k in lineMats){
-      const base = k === 'ghost' ? c('--dim') : k === 'clash' || hi.has(k) ? c('--accent') : c('--line');
+      const base = k === 'ghost' ? c('--dim') : hi.has(k) ? c('--accent') : c('--line');
       lineMats[k].color.set(base);
     }
   }
