@@ -224,7 +224,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // Three layers. The fold frame: a hexagonal ring on the tile's outline, the raceway for power and fibre, with half a
   // hinge on each side that faces a tile and spoke ears beside its corners. It hinges, snaps flat, and never moves again.
   // The delta backplane: a hexagon with three arms, nested in the ring and pushed straight out of it by three lift
-  // actuators, one under each arm's end; it carries three launch-lock posts and six actuator brackets.
+  // actuators, one on each side between the arms; it carries three launch-lock posts and six actuator brackets.
   // The panel: face sheet on an isogrid, three whiffles under it, tipped by the six actuator shafts.
   // So: the lifts set how far forward a panel stands, the six set which way it faces.
   // Everything of one kind is fused into one shape.
@@ -236,7 +236,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const upright = (prof, y0, y1) => new T.ExtrudeGeometry(new T.Shape(prof.map(([x, z]) => new V2(x, z))), { depth:y1 - y0, bevelEnabled:false }).rotateX(PI/2).translate(0, y1, 0);
     const move = (x, y, z) => M4().makeTranslation(x, y, z);
     const ZB = -FR_TH/2, ZT = FR_TH/2, PB = -PL_TH/2;       // frame underside and top; panel back, in the panel's own frame
-    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.368, TAB_END = 0.412, LIFT_R = 0.39, LIFT_L = 0.085;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies
+    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.228, TAB_END = 0.275, LIFT_R = 0.25, LIFT_L = 0.085;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies
     const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
     const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
     const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
@@ -247,14 +247,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
     // ---- frame: ring, delta frame, hinge halves, launch locks ----
     const frame = [];
-    // The fold frame is the ring: it hinges, and snaps flat. From each hinged side a tongue, half the ring's depth, reaches
-    // in under the end of a delta arm, and a lift actuator hangs under its tip. The delta backplane is a separate piece:
-    // it nests in the ring, a tab on each arm's end lapping over a tongue, and the three lifts push it straight out.
+    // The fold frame is the ring: it hinges, and snaps flat. The delta's arms and their actuators take the three sides
+    // that face other tiles, so the lifts take the other three, between the arms. From each of those sides a tongue, half
+    // the ring's depth, reaches in to the delta's body, and a lift actuator hangs under its tip. The delta backplane is
+    // a separate piece: it nests in the ring, a tab on each free side lapping over a tongue, and the lifts push it out.
     const delta = [], lift = [], lifts = [];
     frame.push([slab(hexPts(RING_O), [hexPts(RING_I)], ZB, FR_TH)]);
-    BASE.forEach(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
-      frame.push([slab([at(RING_I, -TG_W), at(TG_END, -0.06), at(TG_END, 0.06), at(RING_I, TG_W)], null, ZB, FR_TH/2)]);
-      delta.push([slab([at(DL_END, -DL_TIP), at(TAB_END, -0.05), at(TAB_END, 0.05), at(DL_END, DL_TIP)], null, 0, FR_TH/2)]);
+    [90, 210, 330].forEach(x => { const c = x*deg, u = dir2(c), t = dir2(c + PI/2), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
+      frame.push([slab([at(RING_I, -TG_W), at(TG_END, -0.05), at(TG_END, 0.05), at(RING_I, TG_W)], null, ZB, FR_TH/2)]);
+      delta.push([slab([at(DL_HEX, -0.075), at(TAB_END, -0.045), at(TAB_END, 0.045), at(DL_HEX, 0.075)], null, 0, FR_TH/2)]);
       const q = at(LIFT_R, 0); lifts.push(new V3(q.x, q.y, 0));
       lift.push([zCyl(0.017, 0.017, LIFT_L, 6), move(q.x, q.y, ZB - LIFT_L/2), 40], [zCyl(0.024, 0.024, 0.012, 6), move(q.x, q.y, ZB - 0.006), 40]); });
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
@@ -784,7 +785,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and spoke ears beside its corners. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
     ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel, its six actuators and three launch-lock posts, and rides straight out of the ring on the lifts.'],
-    ['lift',  'Lift actuators ×57', 'Three per tile, one under the end of each delta arm, on a tongue of the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
+    ['lift',  'Lift actuators ×57', 'Three per tile, on the three sides between the delta\'s arms, each on a tongue reaching in from the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
     ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They only aim: they tip the panel to the dish\'s slope, seat it on its locks for launch and lift it off in orbit.'],
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
