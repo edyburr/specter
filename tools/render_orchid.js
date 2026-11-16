@@ -1,4 +1,4 @@
-// Renders the Webbed Orchid only (hinged peel + port-web horns) into renders/orchid-<LW>/.
+// Renders the Webbed Orchid (hinged peel, port-web horns) into renders/orchid-<LW>/ and exports it to Blender.
 //   npm i playwright && npx playwright install chromium
 //   node tools/render_orchid.js
 // Optional env: LW (line weight in pixels, default 3), PX (image size, default 2048; the exploded view is twice as
@@ -25,7 +25,7 @@ const FAT = ['LineSegmentsGeometry', 'LineMaterial', 'LineSegments2']
   .map(n => `<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/${n}.js"></script>`).join('');
 fs.writeFileSync(PAGE, src.replace(CONTROLS, CONTROLS + FAT)
   .replace(ANCHOR, '  window.__r = { T, root, scene, renderer, lineMats, fillMat, dotMat, beam };\n'
-    + '  window.__pose = v => { t = goal = v; (hinged ? poseHinged : pose)(v); };\n' + ANCHOR));   // any deployment, not just the slider steps
+    + '  window.__pose = v => { t = goal = v; pose(v); };\n' + ANCHOR));   // any deployment, not just the slider steps
 const d2r = Math.PI/180, yaw = a => [-Math.cos(a*d2r), 0, Math.sin(a*d2r)];
 // rz: turn a vector about the array axis (z). Turning the camera and its up together spins the petals in place.
 const rz = ([x,y,z], a) => [x*Math.cos(a*d2r) - y*Math.sin(a*d2r), x*Math.sin(a*d2r) + y*Math.cos(a*d2r), z];
@@ -41,15 +41,15 @@ const ORDER = [['cap',0],['ref',1.3],['spine',1],['shield0',1],['shield1',0.35],
 // 'left-below': out sideways a little further, then down to a note just under the run. 'bracket-up': a bracket under the piece, teeth up, then down to the row.
 // 'bracket': a bracket the full height of the piece on its right, the note beside it.
 const NOTES = [
-  ['cap', null, 'anchor tessel', 'the shell plate that never opens. it holds the craft steady against the movement of the array, like the tail rotor of a helicopter, and carries the inertial mass.'],
-  ['ref', null, 'inertial mass', 'a free-floating proof mass in a housing on the anchor tessel, as far from the core as the shell allows. vibration readings are taken against it.'],
-  ['spine', null, 'tail boom', 'strut from the inertial mass housing to the core. carries the thermal calyx and keeps heat and vibration away from the mass.'],
-  ['shield', null, 'thermal calyx', 'nested v-groove shields on the tail boom, cupped toward the core. they radiate core heat out sideways so the tail stays cold.', 'bracket-up'],
-  ['core', null, 'AEPEC', 'the sealed heart of the craft, the Arctonian-inspired Extra-Planar Energy Core. houses the singularity that powers it.'],
-  ['mast', null, 'keystone boom', 'connects the core to the back of the front tile. the front tile stays fixed and the rest of the array opens around it.'],
-  ['horns', 'harm', 'vibrometry horn', '10 GHz receive horn, held in a gap of the shell by steel wires. measures hull echo timing to pick up heartbeat and breathing.', 'left'],
-  ['horns', 'vib', 'spectrometry horn', '20 GHz receive horn, in the gaps between the vibrometry horns. detects the second-harmonic echo from electronic junctions.', 'left-below'],
-  ['tiles', null, 'phased-array tiles', 'transmit subarrays. they form the shell when stowed and the array when open, hinged at their edges and unfolding from the front tile. shown with the face convex.', 'bracket'],
+  ['cap', null, 'anchor tessel', 'holds the craft steady'],
+  ['ref', null, 'inertial mass', 'vibration reference'],
+  ['spine', null, 'tail boom', 'isolates the mass from the core'],
+  ['shield', null, 'thermal calyx', 'radiates core heat away', 'bracket-up'],
+  ['core', null, 'AEPEC', 'power source'],
+  ['mast', null, 'keystone boom', 'joins core to front tile'],
+  ['horns', 'harm', 'vibrometry horn', '10 GHz receive', 'left'],
+  ['horns', 'vib', 'spectrometry horn', '20 GHz receive', 'left-below'],
+  ['tiles', null, 'phased-array tiles', 'transmit; actuators shape the face', 'bracket'],
 ];
 // Runs in the page. Sorts the scene into pieces, slides each along z so it clears the one before, renders, then adds
 // the notes on a 2D canvas, each centred on its leader: straight down from the parts on the axis, L-shaped from the array.
@@ -67,10 +67,10 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
   root.children.forEach(o => {
     if (!o.visible || o === beam) return;
     const k = keyOf(o), put = n => (P[n] = P[n] || []).push(o);
-    if (k === 'web') put('array');
+    if (k === 'web' || k === 'cable') put('array');   // wires and cables travel with the array
     else if (k === 'aft') put(o.children.length > 2 ? 'cap' : 'ref');          // the cap tile carries an inset outline
     else if (k === 'rad') put(o.children[0].geometry.parameters.openEnded ? 'shield' : 'spine');
-    else if (k === 'tiles') put('array');
+    else if (k === 'frame' || k === 'tiles' || k === 'act') put('array');
     else if (k === 'core') put('core');
     else if (k === 'hinge') put('mast');
     else if (k === 'vib' || k === 'harm') { put('array'); horns.push(o); }
@@ -118,14 +118,14 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
   const toPx = c => [(c.x - cam.left)*s, (cam.top - c.y)*s];
 
   // what each leader points at: the piece, or for the horns one that hangs clear of the tiles (the outermost
-  // horn and the topmost of the other kind), by its waveguide, the small block at the outer end
+  // horn and the topmost of the other kind), by its body, the part that hangs out behind
   const target = (n, key) => {
     if (n === 'horns') {
       const hs = horns.filter(o => keyOf(o) === key);
       const h = key === 'vib' ? hs.reduce((a, b) => ext([b]).y1 > ext([a]).y1 ? b : a) : hs.reduce((a, b) => ext([b]).x0 < ext([a]).x0 ? b : a);
       return [h.children[0].children[0]];
     }
-    return n === 'tiles' ? P.array.filter(o => keyOf(o) === 'tiles') : P[n] || [];
+    return n === 'tiles' ? P.array.filter(o => keyOf(o) === 'frame') : P[n] || [];
   };
   const FAM = 'Helvetica, Arial, sans-serif', F1 = Math.round(W/165), F2 = Math.round(W/220), LH = Math.round(F2*1.65);
   // note width, gap between notes, clearance off the part, page padding, drop from the lowest part on the axis to the row
@@ -214,7 +214,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
       made = []; hid = [];
     };
   });
-  const state = async (dep, face) => { await p.click('#hm-2'); await p.click('#mc-1'); await p.click(face || '#fc-f');
+  const state = async (dep, face) => { await p.click(face || '#fc-f');
     await p.$eval('#dep',(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))},dep); await p.waitForTimeout(300); };
   // half: half-width of the orthographic frame. Without it, returns the half-width that fits the model with a margin.
   const shot = (view, half, px = PX, lw = LW) => p.evaluate(({dir, up, half, PX, LW}) => {

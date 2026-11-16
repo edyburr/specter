@@ -1,0 +1,323 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Panel Bench</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: drafting sheet, same as the SP3-CTR viewer. One tile on the bench: viewport left, controls and checks right (below on phone). */
+:root{
+  --bg:#e9eef2; --sheet:#f6f8fa; --ink:#14263a; --muted:#5b6b7c; --rule:#c3ced8;
+  --line:#1d3a5c; --dim:#a9b7c4; --fill:#f1f5f8; --dot:#55708c; --accent:#c8501a; --ok:#2f7a4a;
+  --display:"Chakra Petch","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1b29; --sheet:#152434; --ink:#dce8f2; --muted:#8da2b6; --rule:#2b4058;
+  --line:#a9d4ee; --dim:#3a5670; --fill:#132131; --dot:#6f9bbb; --accent:#ff9a4d; --ok:#7fd19b; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0f1b29; --sheet:#152434; --ink:#dce8f2; --muted:#8da2b6; --rule:#2b4058;
+  --line:#a9d4ee; --dim:#3a5670; --fill:#132131; --dot:#6f9bbb; --accent:#ff9a4d; --ok:#7fd19b; color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+.app{display:flex;height:100%;min-height:0}
+.view{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:hidden}
+.view canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.view canvas:active{cursor:grabbing}
+.hud{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
+.hud button{pointer-events:auto}
+.fail{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+.block{flex:0 0 340px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;background:var(--sheet);border-left:1px solid var(--rule);
+  padding-block:18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:.02em;margin:0;line-height:1.1}
+h2{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+section{min-width:0}
+.seg{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+.seg button{flex:1;border:0;border-left:1px solid var(--rule);background:transparent;color:var(--ink);font:500 13px var(--body);padding:9px 6px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+.ctl{display:grid;gap:12px}
+.ctl label{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px}
+.ctl label output{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.ctl input[type=range]{display:block;width:100%;margin:0;accent-color:var(--accent)}
+dl{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin:0;font-size:13px}
+dt{color:var(--muted)} dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+dd.bad{color:var(--accent);font-weight:500} dd.good{color:var(--ok)}
+.ghost{border:1px solid var(--rule);background:var(--sheet);color:var(--ink);font:500 11px var(--mono);padding:6px 10px;border-radius:3px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (max-width:760px){
+  .app{flex-direction:column}
+  .view{flex:0 0 52%}
+  .hud{justify-content:flex-end}
+  .block{flex:1 1 auto;border-left:0;border-top:1px solid var(--rule)}
+}
+</style>
+
+<div class="app">
+  <div class="view" id="view">
+    <canvas id="c" aria-label="Panel bench"></canvas>
+    <div class="hud"><span></span><button class="ghost" id="reset" type="button">Reset view</button></div>
+    <div class="fail" id="fail" hidden>three.js failed to load.</div>
+  </div>
+
+  <aside class="block">
+    <header>
+      <h1>Panel Bench</h1>
+    </header>
+
+    <section class="ctl">
+      <div>
+        <label id="l-fold">Neighbours</label>
+        <div class="seg" role="group" aria-labelledby="l-fold">
+          <button type="button" data-fold="0" aria-pressed="true">Flat</button>
+          <button type="button" data-fold="1" aria-pressed="false">Stowed</button>
+        </div>
+      </div>
+      <div><label for="fold">Fold <output id="o-fold"></output></label><input type="range" id="fold" min="0" max="1000" value="0"></div>
+      <div><label for="neck">Neck: frame to panel <output id="o-neck"></output></label><input type="range" id="neck" min="60" max="400" value="160"></div>
+      <div><label for="drop">Hinge axis below panel <output id="o-drop"></output></label><input type="range" id="drop" min="0" max="420" value="30"></div>
+      <div><label for="fill">Frame size, of what fits <output id="o-fill"></output></label><input type="range" id="fill" min="40" max="100" value="90"></div>
+      <div><label for="tip">Panel tip <output id="o-tip"></output></label><input type="range" id="tip" min="-120" max="120" value="0"></div>
+      <div><label for="dir">Tip direction <output id="o-dir"></output></label><input type="range" id="dir" min="0" max="360" value="30"></div>
+      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-50" max="50" value="0"></div>
+    </section>
+
+    <section>
+      <h2>Checks</h2>
+      <dl>
+        <dt>Gap to neighbour panel, flat</dt><dd id="k-flat"></dd>
+        <dt>Panel to hinge, at this tip</dt><dd id="k-tip"></dd>
+        <dt>Frame inside its wedge, stowed</dt><dd id="k-wedge"></dd>
+        <dt>Actuator length, min / max</dt><dd id="k-leg"></dd>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Dimensions</h2>
+      <dl>
+        <dt>Panel, flat to flat</dt><dd>1.00 m</dd>
+        <dt>Frame, flat to flat</dt><dd id="d-frame"></dd>
+        <dt>Hinge pitch when flat</dt><dd id="d-pitch"></dd>
+        <dt>Fold angle per hinge</dt><dd id="d-fold"></dd>
+        <dt>Stowed ball, panels</dt><dd id="d-ball"></dd>
+        <dt>Stowed ball, frames</dt><dd id="d-inner"></dd>
+      </dl>
+    </section>
+
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+  const view = document.getElementById('view'), canvas = document.getElementById('c');
+  if (!window.THREE || !THREE.OrbitControls) { document.getElementById('fail').hidden = false; return; }
+  const T = THREE, V3 = T.Vector3, PI = Math.PI, zUp = new V3(0,0,1), deg = PI/180;
+
+  // ---- fixed geometry (metres). Local frame of one tile: +z out of the ball, origin at the panel's back centre when stowed. ----
+  // Hex faces of a truncated icosahedron: distance from the centre = K x half the face's flat-to-flat, K = golden ratio squared.
+  // Neighbouring hex faces are FOLD apart.
+  const PHIG = (1 + Math.sqrt(5))/2, K = PHIG*PHIG, FOLD = 2*Math.atan(1/K);
+  const W_P = 1.00, PL_TH = 0.02, SEAM = 0.01;     // panel flat to flat, panel thickness, seam between stowed panels
+  const D_P = K*(W_P + SEAM)/2;                    // shell centre to the panel's back
+  const FR_TH = 0.04, KN_R = 0.02;                  // frame thickness, hinge knuckle radius
+  const HINGED = [0, 2, 4];                         // the three edges that hinge (edge k faces 30 + 60k degrees)
+  const edgeU = k => new V3(Math.cos((30 + 60*k)*deg), Math.sin((30 + 60*k)*deg), 0);
+  const hexPrism = (inr, h) => { const r = inr*2/Math.sqrt(3);   // inradius in; vertex 0 on +x, axis z
+    return new T.CylinderGeometry(r, r, h, 6, 1).applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0))); };
+
+  // ---- parameters ----
+  const P = { fold:0, neck:0.16, drop:0.03, fill:0.9, tip:0, dir:30*deg, pis:0 };
+
+  // ---- materials and parts ----
+  const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
+  const dotMat = new T.PointsMaterial({ size:2.2, sizeAttenuation:false });
+  const lineMats = {}, lineMat = k => lineMats[k] || (lineMats[k] = new T.LineBasicMaterial());
+  const wedgeMat = new T.LineDashedMaterial({ dashSize:0.04, gapSize:0.03 });
+  const part = (key, geo, angle) => { const g = new T.Group(), m = new T.Mesh(geo, fillMat); m.userData.key = key;
+    g.add(m, new T.LineSegments(new T.EdgesGeometry(geo, angle || 20), lineMat(key))); return g; };
+  // a beam from a to b, `w` wide along `side` and `h` deep
+  const beam = (key, a, b, w, h, side) => { const d = new V3().subVectors(b, a), L = d.length(); d.normalize();
+    const g = part(key, new T.BoxGeometry(w, h, L)); g.position.copy(a).add(b).multiplyScalar(0.5);
+    g.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(side, new V3().crossVectors(d, side), d)); return g; };
+  const outlineOf = obj => { const g = new T.Group();   // lines-only copy of a built part, for the neighbours
+    obj.traverse(o => { if (o.isLineSegments) { const l = new T.LineSegments(o.geometry, lineMat('ghost')); o.updateMatrixWorld(true);
+      l.matrixAutoUpdate = false; l.matrix.copy(o.matrixWorld); g.add(l); } }); return g; };
+
+  const scene = new T.Scene(), root = new T.Group(); scene.add(root);
+  let tile = null, panel = null, legs = [], ghosts = [], derived = {};
+
+  // the six actuators: three pairs, each pair close together on the frame and splitting to two different pairs on the panel
+  const LEG_SPREAD = [8, 52];
+  function legPoints(rl){
+    return [0, 1, 2].flatMap(k => [1, -1].map(sg => ({
+      b:new V3(Math.cos((120*k + LEG_SPREAD[0]*sg)*deg)*rl, Math.sin((120*k + LEG_SPREAD[0]*sg)*deg)*rl, -P.neck),
+      p:new V3(Math.cos((120*k + LEG_SPREAD[1]*sg)*deg)*rl, Math.sin((120*k + LEG_SPREAD[1]*sg)*deg)*rl, 0) })));
+  }
+
+  // ---- build: everything that depends on the sizes ----
+  function build(){
+    root.remove(...root.children); legs = []; ghosts = [];
+    const zFf = -P.neck, zFb = zFf - FR_TH, zFm = zFf - FR_TH/2, zH = -P.drop;
+    const rfMax = (D_P + zFb)/K, rf = P.fill*rfMax;          // frame inradius: what fits the wedge at the frame's back, scaled
+    const a = (D_P + zH)/K;                                   // hinge axis distance from the centre line (on the wedge plane)
+    derived = { zFf, zFb, zH, rf, rfMax, a };
+
+    tile = new T.Group(); root.add(tile);
+    // frame: hex plate, ribbed open at the back
+    const frame = part('frame', hexPrism(rf, FR_TH)); frame.position.z = zFm; tile.add(frame);
+    const ribs = [], n = 3, s = rf*2/Math.sqrt(3)/n, inn = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= n;
+    const at = (i, j) => new V3((i + j/2)*s, j*s*Math.sqrt(3)/2, zFb - 0.001);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) if (inn(i, j))
+      for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inn(i + di, j + dj)) ribs.push(at(i, j), at(i + di, j + dj));
+    tile.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(ribs), lineMat('frame')));
+    // hinge arms and knuckles on the three hinged edges
+    HINGED.forEach(k => {
+      const u = edgeU(k), t = new V3().crossVectors(zUp, u), hp = u.clone().multiplyScalar(a).setZ(zH);
+      const foot = u.clone().multiplyScalar(rf*0.8).setZ(zFm);
+      if (hp.distanceTo(foot) > 0.03) tile.add(beam('arm', foot, hp.clone().addScaledVector(u, -KN_R), 0.08, 0.03, t));
+      const kn = part('hinge', new T.CylinderGeometry(KN_R, KN_R, 0.12, 8).rotateX(PI/2), 50);
+      kn.position.copy(hp).addScaledVector(t, 0.07); kn.quaternion.setFromUnitVectors(zUp, t); tile.add(kn);
+    });
+    // panel: element plate, tipped about the centre of its back
+    panel = new T.Group(); tile.add(panel);
+    const plate = part('panel', hexPrism(W_P/2, PL_TH)); plate.position.z = PL_TH/2; panel.add(plate);
+    const rp = W_P/2*0.9*2/Math.sqrt(3);
+    panel.add(new T.Line(new T.BufferGeometry().setFromPoints(Array.from({ length:7 }, (_, i) =>
+      new V3(Math.cos(i*PI/3)*rp, Math.sin(i*PI/3)*rp, PL_TH + 0.001))), lineMat('panel')));
+    const dots = [], pitch = 0.105, Rm = W_P/2*0.84*2/Math.sqrt(3), s3 = Math.sqrt(3);
+    for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){ const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
+      if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) dots.push(new V3(x, y, PL_TH + 0.002)); }
+    panel.add(new T.Points(new T.BufferGeometry().setFromPoints(dots), dotMat));
+    // actuators: motor body on the frame, rod to the panel
+    const rl = Math.min(0.2, 0.75*rf), len0 = P.neck, body = Math.min(0.09, 0.45*len0);
+    const bodyGeo = new T.CylinderGeometry(0.014, 0.014, body, 8, 1).rotateX(PI/2).translate(0, 0, body/2);
+    const rodGeo = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
+    legPoints(rl).forEach(l => { const b = part('act', bodyGeo), r = part('act', rodGeo); tile.add(b, r); legs.push({ ...l, b0:b, r0:r }); });
+    // the wedge: rays from the shell centre through the panel's back corners, drawn from behind the frame to just past the panel
+    const wl = [], rc = (W_P + SEAM)/2*2/Math.sqrt(3), c0 = new V3(0, 0, -D_P);
+    for (let i = 0; i < 6; i++){ const c = new V3(Math.cos(i*PI/3)*rc, Math.sin(i*PI/3)*rc, 0), d = c.clone().sub(c0);
+      const p0 = c0.clone().addScaledVector(d, (D_P + zFb - 0.12)/D_P), p1 = c0.clone().addScaledVector(d, (D_P + 0.08)/D_P); wl.push(p0, p1); }
+    const wg = new T.LineSegments(new T.BufferGeometry().setFromPoints(wl), wedgeMat); wg.computeLineDistances(); root.add(wg);
+    // neighbours: this tile, panel at rest, mirrored across each hinge's plane, then folded about the hinge axis
+    setPanel(new T.Quaternion(), 0); tile.updateMatrixWorld(true);
+    const flatPanel = outlineOf(tile);
+    HINGED.forEach(k => { const g = flatPanel.clone(); g.matrixAutoUpdate = false; g.userData.k = k; root.add(g); ghosts.push(g); });
+    pose();
+  }
+
+  // ---- pose: panel tip and piston, actuators, neighbour fold ----
+  const q = new T.Quaternion(), d = new V3(), M = new T.Matrix4(), Mr = new T.Matrix4(), Mt = new T.Matrix4();
+  // turn the panel about the centre of its back, lift it by pis, and run each actuator out to reach it; returns the leg lengths
+  function setPanel(qq, pis){
+    panel.quaternion.copy(qq); panel.position.set(0, 0, pis);
+    let lo = Infinity, hi = 0;
+    legs.forEach(l => { const top = l.p.clone().applyQuaternion(qq); top.z += pis; d.subVectors(top, l.b); const L = d.length(); d.divideScalar(L);
+      lo = Math.min(lo, L); hi = Math.max(hi, L);
+      l.b0.position.copy(l.b); l.r0.position.copy(l.b); l.r0.scale.z = L; l.b0.quaternion.setFromUnitVectors(zUp, d); l.r0.quaternion.copy(l.b0.quaternion); });
+    return [lo, hi];
+  }
+  function pose(){
+    const ax = new V3(-Math.sin(P.dir), Math.cos(P.dir), 0);   // tip toward P.dir: the axis is square to it
+    q.setFromAxisAngle(ax, P.tip);
+    const [lo, hi] = setPanel(q, P.pis);
+    const { a, zH } = derived;
+    ghosts.forEach(g => { const u = edgeU(g.userData.k), t = new V3().crossVectors(zUp, u), hp = u.clone().multiplyScalar(a).setZ(zH);
+      // mirror across the plane through the hinge axis, normal u; then turn about the axis, down toward the shell centre
+      const m = new T.Matrix4().set(1 - 2*u.x*u.x, -2*u.x*u.y, 0, 0,  -2*u.x*u.y, 1 - 2*u.y*u.y, 0, 0,  0, 0, 1, 0,  0, 0, 0, 1);
+      M.makeTranslation(-hp.x, -hp.y, -hp.z).premultiply(m).premultiply(Mr.makeRotationAxis(t, P.fold*FOLD)).premultiply(Mt.makeTranslation(hp.x, hp.y, hp.z));
+      g.matrix.copy(M); });
+    checks(lo, hi);
+  }
+
+  // ---- checks and readouts ----
+  const $ = id => document.getElementById(id), mm = x => Math.round(x*1000) + ' mm';
+  const mark = (id, txt, ok) => { const e = $(id); e.textContent = txt; e.className = ok === undefined ? '' : ok ? 'good' : 'bad'; };
+  function checks(lo, hi){
+    const { a, rf, rfMax, zH } = derived;
+    const gap = 2*a - W_P;
+    mark('k-flat', gap >= 0 ? mm(gap) : mm(-gap) + ' overlap', gap >= 0);
+    // the panel's back right over each knuckle (it sits just inside the panel's edge), against the top of the knuckle
+    let clr = Infinity;
+    HINGED.forEach(k => { const u = edgeU(k), t = new V3().crossVectors(zUp, u);
+      for (const s of [0, 0.07, 0.14]){ const p = u.clone().multiplyScalar(Math.min(a, W_P/2)).addScaledVector(t, s).applyQuaternion(q);
+        clr = Math.min(clr, p.z + P.pis - (zH + KN_R)); } });
+    mark('k-tip', clr >= 0 ? mm(clr) : mm(-clr) + ' into it', clr >= 0);
+    mark('k-wedge', rf <= rfMax + 1e-9 ? mm(rfMax - rf) + ' spare' : 'no', rf <= rfMax + 1e-9);
+    mark('k-leg', mm(lo) + ' / ' + mm(hi));
+    $('d-frame').textContent = (2*rf).toFixed(2) + ' m';
+    $('d-pitch').textContent = (2*a).toFixed(3) + ' m';
+    $('d-fold').textContent = (FOLD/deg).toFixed(1) + '°';
+    $('d-ball').textContent = '⌀ ' + (2*Math.hypot(D_P + PL_TH, W_P/Math.sqrt(3))).toFixed(2) + ' m';
+    $('d-inner').textContent = '⌀ ' + (2*Math.hypot(D_P - P.neck, rf*2/Math.sqrt(3))).toFixed(2) + ' m';
+    ghosts.forEach(g => g.children.forEach(l => { l.material = gap < -0.001 && P.fold < 0.5 ? lineMat('clash') : lineMat('ghost'); }));
+  }
+
+  // ---- controls ----
+  const sliders = {
+    fold:[v => v/1000, v => (v*FOLD/deg).toFixed(1) + '°'],
+    neck:[v => v/1000, v => mm(v)], drop:[v => v/1000, v => mm(v)], fill:[v => v/100, v => Math.round(v*100) + '%'],
+    tip:[v => v/10*deg, v => (v/deg).toFixed(1) + '°'], dir:[v => v*deg, v => Math.round(v/deg) + '°'], pis:[v => v/1000, v => (v >= 0 ? '+' : '') + mm(v)],
+  };
+  const rebuildOn = new Set(['neck', 'drop', 'fill']);
+  let foldGoal = null;
+  Object.entries(sliders).forEach(([k, [read, show]]) => {
+    const el = $(k), out = $('o-' + k);
+    const sync = () => { P[k] = read(+el.value); out.textContent = show(P[k]); };
+    el.addEventListener('input', () => {
+      sync(); if (k === 'fold') { foldGoal = null; markFold(); }
+      if (k === 'neck') {   // the hinge can sit no deeper than the middle of the frame
+        const dmax = Math.round((P.neck + FR_TH/2)*1000), dr = $('drop'); dr.max = dmax;
+        if (+dr.value > dmax) dr.value = dmax; P.drop = +dr.value/1000; $('o-drop').textContent = mm(P.drop); }
+      rebuildOn.has(k) ? build() : pose();
+    });
+    sync();
+  });
+  $('drop').max = Math.round((P.neck + FR_TH/2)*1000);
+  const markFold = () => document.querySelectorAll('[data-fold]').forEach(b => b.setAttribute('aria-pressed', String(foldGoal === null ? +b.dataset.fold === P.fold : +b.dataset.fold === foldGoal)));
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll('[data-fold]').forEach(b => b.addEventListener('click', () => {
+    foldGoal = +b.dataset.fold; if (still.matches) { setFold(foldGoal); foldGoal = null; } markFold(); }));
+  function setFold(v){ P.fold = v; $('fold').value = Math.round(v*1000); $('o-fold').textContent = sliders.fold[1](v); pose(); }
+
+
+  // ---- renderer, camera, theme ----
+  const renderer = new T.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const camera = new T.PerspectiveCamera(32, 1, 0.02, 100); camera.up.set(0, 0, 1);
+  const controls = new T.OrbitControls(camera, canvas);
+  controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 0.4; controls.maxDistance = 20;
+  function resetView(){
+    const asp = view.clientWidth/Math.max(1, view.clientHeight), dist = 5.2/Math.min(1, asp*0.95);
+    camera.position.set(0.62, -0.95, 0.55).normalize().multiplyScalar(dist); controls.target.set(0, 0, -0.12); controls.update();
+  }
+  function resize(){ const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(view);
+  function paint(){
+    const cs = getComputedStyle(document.documentElement), c = n => cs.getPropertyValue(n).trim();
+    renderer.setClearColor(new T.Color(c('--bg')));
+    fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); wedgeMat.color.set(c('--muted'));
+    lineMat('ghost'); lineMat('clash');
+    for (const k in lineMats){
+      const base = k === 'ghost' ? c('--dim') : k === 'clash' ? c('--accent') : c('--line');
+      lineMats[k].color.set(base);
+    }
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
+  new MutationObserver(paint).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+  $('reset').addEventListener('click', resetView);
+
+  build(); resize(); resetView(); paint();
+  let last = performance.now();
+  (function loop(now){
+    const dt = Math.min(0.05, (now - last)/1000); last = now;
+    if (foldGoal !== null && P.fold !== foldGoal) setFold(foldGoal > P.fold ? Math.min(foldGoal, P.fold + dt/1.6) : Math.max(foldGoal, P.fold - dt/1.6));
+    controls.update(); renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })(last);
+})();
+</script>

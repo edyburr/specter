@@ -84,22 +84,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         </div>
       </div>
       <div>
-        <label id="l-mech">Mechanism</label>
-        <div class="seg" role="group" aria-labelledby="l-mech">
-          <button type="button" id="mc-0" data-mech="0" aria-pressed="false">Carriages</button>
-          <button type="button" id="mc-1" data-mech="1" aria-pressed="true">Hinged peel</button>
-        </div>
-      </div>
-      <div>
-        <label id="l-mount">Horn mounts</label>
-        <div class="seg" role="group" aria-labelledby="l-mount">
-          <button type="button" id="hm-0" data-mount="0" aria-pressed="false">Boom tips</button>
-          <button type="button" id="hm-1" data-mount="1" aria-pressed="false">Tile stalks</button>
-          <button type="button" id="hm-2" data-mount="2" aria-pressed="true">Port webs</button>
-        </div>
-      </div>
-      <div>
-        <label for="dep" id="l-dep">Deployment: lift, slide, unfurl</label>
+        <label for="dep" id="l-dep">Deployment: open, uncurl</label>
         <input type="range" id="dep" min="0" max="100" value="100" step="1">
       </div>
       <div>
@@ -121,18 +106,21 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       <h2>Dimensions</h2>
       <dl>
         <dt>Carrier</dt><dd>10 GHz, λ = 3 cm</dd>
-        <dt>Active aperture</dt><dd id="d-ap">5.0 m, filled</dd>
+        <dt>Active aperture</dt><dd id="d-ap">thinned</dd>
         <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
         <dt>Array tiles</dt><dd>19 + aft cap</dd>
-        <dt>Stowed shell</dt><dd>⌀ 2.9 m</dd>
+        <dt>Tile depth</dt><dd>40 mm frame + 120 mm actuators + 20 mm panel</dd>
+        <dt>Panel tip, concave / convex</dt><dd>up to 10°, outermost panel</dd>
+        <dt>Stowed shell</dt><dd id="d-sh">⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
         <dt>Elements per tile</dt><dd>≈ 3 800</dd>
         <dt>Receive horns</dt><dd>6 + 6</dd>
-        <dt>Horn ring</dt><dd id="d-ring">⌀ 5.6 m</dd>
+        <dt>Web spokes</dt><dd>⌀ 10 mm, hollow</dd>
+        <dt>Horn mounts</dt><dd>shell ports</dd>
       </dl>
     </section>
 
-    <p class="note">Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps stay open as listening ports. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. In hinged mode the 19 array tiles unfold as a net: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as the filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. With boom-tip mounts the horns rise on posts until their mouths are level with the array face. With tile stalks there are no booms in hinged mode at all: each horn rides a short stalk on the back of a rim tile and flips forward once the tile is flat. With port webs the 12 horns sit in the 12 pentagonal gaps of the stowed shell, slung on steel wires that telescope and swivel at their anchors, a pair from the front and back of each corner of the gap to a corner of the horn's bevelled pentagonal lip; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Dots on the tiles stand in for the real element lattice, which is far denser.</p>
+    <p class="note">Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke ends in a cannulated ball joint, a ball with a bore through it in a sealed socket, so the fibre passes through while the joint swivels, on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p>
   </aside>
 </div>
 
@@ -142,17 +130,21 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 (function(){
   const view = document.getElementById('view'), canvas = document.getElementById('c');
   if (!window.THREE || !THREE.OrbitControls) { document.getElementById('fail').hidden = false; return; }
-  const T = THREE, V3 = T.Vector3, PI = Math.PI;
+  const T = THREE, V3 = T.Vector3, PI = Math.PI, zUp = new V3(0,0,1);
 
   // ---- dimensions (metres). Model +z is boresight. ----
   const A = 1/Math.sqrt(3);      // hex edge: 1.00 m flat to flat
   const R = A*0.975;             // drawn tile circumradius, leaves a seam between tiles
-  const TH = 0.06;               // tile thickness
-  const Z_BOOM = 0.10;           // boom / carriage-ring plane
-  const Z_ARR = 0.72;            // array back surface, flat face. Sits above the horn mouths so horns can slide out underneath
-  const RC = 9;                  // radius of curvature for concave / convex face
-  const R_STOW = 1.0;            // boom tip radius when retracted (= ring radius)
-  const BOOM_R0 = 0.39, CORE_S = 0.3, CORE_RAD = 0.40;   // core shell: the outer shell at 30% scale, centred on the boom plane
+  // A tile is two layers. The frame is the structure: it is a face of the shell when stowed, carries the edge hinges
+  // and the fibre, and locks flat when open. The panel carries the elements and sits on six actuators above its frame.
+  const FR_TH = 0.04;            // frame thickness, ribbed open at the back
+  const GAP = 0.12;              // frame front to panel back, spanned by the actuators
+  const PL_TH = 0.02;            // panel thickness
+  const PL_R = R*0.95;           // panel circumradius: a little inside its frame, so tipped panels clear each other
+  const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
+  const TILT = 10*Math.PI/180;   // how far the outermost panel tips for a concave or convex face
+  const Z_CORE = 0.10;           // centre of the core shell
+  const CORE_S = 0.3;            // core shell: the outer shell at 30% scale
 
   // ---- materials ----
   const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
@@ -173,7 +165,6 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     o = o || {};
     const g = new T.Group();
     const m = new T.Mesh(geo, fillMat); m.name = o.name || key; m.userData.key = key;
-    if (o.fill === false) { m.visible = false; m.userData.nofill = true; }   // kept for export, never drawn
     g.add(m);
     g.add(new T.LineSegments(outline(geo, o.angle || 20), lineMat(key)));
     return g;
@@ -183,10 +174,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const scene = new T.Scene(), root = new T.Group();
   scene.add(root);
 
-  // ---- chassis: carriage ring, spine with radiator fins. The core shell is built further down, from the tile geometry ----
-  const rail = part('ring', new T.TorusGeometry(R_STOW, 0.035, 4, 96), { angle:30 });
-  rail.position.z = Z_BOOM; root.add(rail);
-
+  // ---- tail. The core shell is built further down, from the tile geometry ----
   // calyx: three nested V-groove shields on the spine, cupped toward the core. Each one intercepts heat coming down
   // the spine from the core and sheds it sideways to space, so the tail end stays cold and still.
   [[-0.42, 0.38], [-0.60, 0.30], [-0.78, 0.22]].forEach(c => {
@@ -219,22 +207,42 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   }
 
   // ---- tiles. One Tile class, twenty tiles. ----
-  // Every tile is drawn from the same template (Tile.solid, Tile.inset, Tile.dots): one shape, placed twenty times.
-  // What makes a tile itself is its data: where it sits on the shell, where it hangs in the hinged net, where it parks
-  // in the carriage array. All of that is declared here, so a tile never picks up a field anywhere else.
+  // Every tile is drawn from the same template (frame, ribs, panel, legs): one shape, placed twenty times.
+  // What makes a tile itself is its data: where it sits on the shell and where it hangs in the hinged net. All of that
+  // is declared here, so a tile never picks up a field anywhere else.
+  const hexPrism = (r, h) => new T.CylinderGeometry(r, r, h, 6, 1)
+    .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // axis -> z, vertex 0 -> +x
+  const LEG_R = 0.2, LEG_BODY = 0.09;   // actuator circle on frame and panel, length of an actuator's motor body
   class Tile {
-    static solid = new T.CylinderGeometry(R, R, TH, 6, 1)
-      .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // axis -> z, vertex 0 -> +x
-    static inset = new T.BufferGeometry().setFromPoints(
-      Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*R*0.9, Math.sin(i*PI/3)*R*0.9, TH/2 + 0.001)));
-    static dots = (function(){   // stand-in for the element lattice
-      const pts = [], pitch = 0.105, Rm = R*0.84, s3 = Math.sqrt(3);
-      for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){
-        const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
-        if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) pts.push(new V3(x, y, TH/2 + 0.002));
+    static frame = hexPrism(R, FR_TH);
+    static ribs = (function(){   // isogrid on the open back of the frame: triangles a third of the tile edge
+      const n = 3, s = R/n, z = -FR_TH/2 - 0.001, pts = [], inn = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= n;
+      const at = (i, j) => new V3((i + j/2)*s, j*s*Math.sqrt(3)/2, z);
+      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++){
+        if (!inn(i, j)) continue;
+        for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inn(i + di, j + dj)) pts.push(at(i, j), at(i + di, j + dj));
       }
       return new T.BufferGeometry().setFromPoints(pts);
     })();
+    static plate = hexPrism(PL_R, PL_TH);
+    static inset = new T.BufferGeometry().setFromPoints(
+      Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*PL_R*0.9, Math.sin(i*PI/3)*PL_R*0.9, PL_TH/2 + 0.001)));
+    static dots = (function(){   // stand-in for the element lattice
+      const pts = [], pitch = 0.105, Rm = PL_R*0.84, s3 = Math.sqrt(3);
+      for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){
+        const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
+        if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) pts.push(new V3(x, y, PL_TH/2 + 0.002));
+      }
+      return new T.BufferGeometry().setFromPoints(pts);
+    })();
+    // the six actuators, a hexapod: three pairs, each pair close together on the frame and splitting to two different
+    // pairs on the panel, so the legs zig-zag round the circle. b: foot on the frame front, p: head on the panel back
+    static legs = [0, 1, 2].flatMap(k => [1, -1].map(sg => {
+      const a = (120*k + 8*sg)*PI/180, b = (120*k + 52*sg)*PI/180;
+      return { b:new V3(Math.cos(a)*LEG_R, Math.sin(a)*LEG_R, FR_TH/2), p:new V3(Math.cos(b)*LEG_R, Math.sin(b)*LEG_R, -PL_TH/2) };
+    }));
+    static body = new T.CylinderGeometry(0.014, 0.014, LEG_BODY, 8, 1).rotateX(PI/2).translate(0, 0, LEG_BODY/2);
+    static rod = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
 
     // c: centre of its hex face on the shell, v0: that face's first corner. cap: the aft cap, the 20th hexagon, a
     // blank closure plate that never deploys and carries no elements.
@@ -246,7 +254,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const u = v0.clone().sub(c).normalize(), w = new V3().crossVectors(this.n, u);
       this.qs = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, w, this.n));   // attitude
       this.verts = Array.from({ length:6 }, (_, k) => c.clone().addScaledVector(u, A*Math.cos(k*PI/3)).addScaledVector(w, A*Math.sin(k*PI/3)));
-      this.ps = c.clone().addScaledVector(this.n, TH/2);               // position: back face on the polyhedron, so tiles never intersect
+      this.ps = c.clone().addScaledVector(this.n, FR_TH/2);            // position: frame back on the polyhedron, so tiles never intersect
 
       // hinged net, filled in by the net builder
       this.adj = [];                          // tiles sharing an edge with this one: { g:tile, mid:edge midpoint }
@@ -256,30 +264,36 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.hA = 0;                            // fold angle the hinge takes out
       this.G = new T.Matrix4();               // current hinge transform, stowed to now
       this.flat = null; this.flatQ = null;    // position and attitude with the net fully open
-
-      // carriage array, filled in by setDeployedPoses
-      this.slot = null;                       // its slot in the flat 19-hex array
-      this.lift = 0; this.polar = 0;          // how far it rises off the shell, polar angle of its dock
-      this.dd = null; this.rs = 0;            // dock direction, radius of its shell
-      this.qslide = null;                     // rotation that slides it from its face to its dock
-      this.qk = null;                         // attitude at the dock
-      this.pd = null; this.qd = null;         // position and attitude in the array
-      this.fr = 0;                            // slot radius: how far out its carriage foot runs
-      this.strut = null;                      // carriage arm
-
-      // tile-stalk horn mount, rim tiles only
-      this.stalk = null; this.hp = null;      // the stalk and the horn on it
-      this.phiP = 0; this.phiC = 0;           // stalk direction in the hinged and the carriage array
+      this.tipAx = new V3(1,0,0); this.tipA = 0;   // panel tip for a concave face: axis in the frame, angle
 
       // drawing
-      const key = cap ? 'aft' : 'tiles';
-      this.obj = part(key, Tile.solid);
-      this.obj.add(new T.Line(Tile.inset, lineMat(key)));
-      if (!cap) this.obj.add(new T.Points(Tile.dots, dotMat));
+      const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
+      this.obj = part(fk, Tile.frame);
+      this.obj.add(new T.LineSegments(Tile.ribs, lineMat(fk)));
+      this.panel = part(pk, Tile.plate, { name:'Panel' });
+      this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
+      if (!cap) this.panel.add(new T.Points(Tile.dots, dotMat));
+      this.panel.position.z = Z_PL; this.obj.add(this.panel);
+      this.legs = Tile.legs.map(() => {
+        const body = part(ak, Tile.body, { name:'Actuator' }), rod = part(ak, Tile.rod, { name:'Actuator rod' });
+        this.obj.add(body, rod); return { body, rod };
+      });
+      this.setPanel(new T.Quaternion());
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
+    // turn the panel about its centre and run each actuator out to reach it
+    setPanel(q){
+      this.panel.quaternion.copy(q);
+      Tile.legs.forEach((l, i) => {
+        const { body, rod } = this.legs[i], d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL; d.sub(l.b);
+        const len = d.length(); d.divideScalar(len);
+        body.position.copy(l.b); rod.position.copy(l.b); rod.scale.z = len;
+        body.quaternion.setFromUnitVectors(zUp, d); rod.quaternion.copy(body.quaternion);
+      });
+    }
+    static _d = new V3();
     get name(){ return this.obj.name; }
-    set name(s){ this.obj.name = s; }
+    set name(s){ this.obj.name = s; this.panel.name = s + ' panel'; }
   }
   const shell = hexFaces(), aftI = shell.reduce((m, f, i) => f.c.z < shell[m].c.z ? i : m, 0);
   const tiles = shell.map((f, i) => new Tile(f.c, f.v0, i === aftI)), ico = shell.ico;
@@ -300,10 +314,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     });
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
     g.scale(CORE_S, CORE_S, CORE_S); g.computeVertexNormals();
-    const ball = part('core', g); ball.position.z = Z_BOOM; root.add(ball);
+    const ball = part('core', g); ball.position.z = Z_CORE; root.add(ball);
   })();
 
-  // ---- hinged variant: tiles joined along shared edges, as a tree rooted at the front tile ----
+  // ---- hinged net: tiles joined along shared edges, as a tree rooted at the front tile ----
   for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++){
     const f = tiles[i], g = tiles[j], sh = f.verts.filter(v => g.verts.some(x => x.distanceTo(v) < 1e-4));
     if (sh.length === 2){ const mid = sh[0].clone().add(sh[1]).multiplyScalar(0.5); f.adj.push({ g, mid }); g.adj.push({ g:f, mid }); }
@@ -326,179 +340,82 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     order.forEach((f, i) => { f.name = 'Tile ' + String(i + 1).padStart(2, '0'); }); aft.name = 'Aft cap';
   })();
 
-  // ---- flat 19-hex slots, matched to faces by unrolling the sphere ----
-  const slots = [];
-  for (let q = -2; q <= 2; q++) for (let r = -2; r <= 2; r++)
-    if (Math.abs(q + r) <= 2) slots.push({ x:q + r/2, y:r*Math.sqrt(3)/2 });
-  // Tiers. The two polar triads feed the inner ring, the two equatorial bands feed the outer ring.
-  // Matching is order-preserving in azimuth, so tiles on the same shell never cross paths.
-  const az = o => Math.atan2(o.y, o.x);
-  function assign(fs, ss){
-    fs.sort((a, b) => az(a.n) - az(b.n)); ss.sort((a, b) => az(a) - az(b));
-    const m = fs.length; let best = 0, bc = Infinity;
-    for (let k = 0; k < m; k++){
-      let c = 0;
-      for (let i = 0; i < m; i++){ const d = az(fs[i].n) - az(ss[(i + k) % m]); c += Math.pow(Math.atan2(Math.sin(d), Math.cos(d)), 2); }
-      if (c < bc) { bc = c; best = k; }
-    }
-    fs.forEach((f, i) => { f.slot = ss[(i + best) % m]; });
-  }
-  const sr = s => Math.hypot(s.x, s.y), DEG = PI/180;
-  top.slot = slots.find(s => sr(s) < 0.1); top.lift = 0; top.polar = 0;
-  const rest = movers.filter(f => f !== top);
-  const inner = rest.filter(f => Math.abs(f.n.z) > 0.6), north = rest.filter(f => f.n.z > 0 && f.n.z < 0.6), south = rest.filter(f => f.n.z < 0 && f.n.z > -0.6);
-  assign(inner, slots.filter(s => sr(s) > 0.1 && sr(s) < 1.1)); inner.forEach(f => { f.lift = 0.42; f.polar = 42*DEG; });
-  assign(north, slots.filter(s => sr(s) > 1.6 && sr(s) < 1.8)); north.forEach(f => { f.lift = 0.98; f.polar = 32*DEG; });
-  assign(south, slots.filter(s => sr(s) > 1.9));                 south.forEach(f => { f.lift = 0.98; f.polar = 55*DEG; });
-
-  let kappa = 0;
-  function setDeployedPoses(){
-    const zAx = new V3(0,0,1);
-    movers.forEach(f => {
-      const x = f.slot.x, y = f.slot.y;
-      const z = Z_ARR + (kappa < 0 ? 0.3 : 0) + kappa*(x*x + y*y)/(2*RC);
-      const n = new V3(-kappa*x/RC, -kappa*y/RC, 1).normalize();
-      const u = new V3(Math.cos(PI/6), Math.sin(PI/6), 0); u.addScaledVector(n, -u.dot(n)).normalize();
-      const q0 = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, new V3().crossVectors(n, u), n));
-      // dock: where the tile parks on its shell before unfurling, straight above its slot's azimuth
-      const a = az(f.slot);
-      f.dd = new V3(Math.sin(f.polar)*Math.cos(a), Math.sin(f.polar)*Math.sin(a), Math.cos(f.polar));
-      f.rs = f.ps.length();
-      f.qslide = new T.Quaternion().setFromUnitVectors(f.n, f.dd);
-      const tip = new T.Quaternion().setFromUnitVectors(n, f.dd);
-      let best = null, bd = -1;
-      for (let i = 0; i < 6; i++){   // hex symmetry: take the clocking closest to the stowed attitude
-        const q = q0.clone().multiply(new T.Quaternion().setFromAxisAngle(zAx, i*PI/3)), d = Math.abs(tip.clone().multiply(q).dot(f.qs));
-        if (d > bd) { bd = d; best = q; }
-      }
-      f.qd = best; f.qk = tip.clone().multiply(best);
-      f.pd = new V3(x, y, z).addScaledVector(n, TH/2);
-      f.fr = sr(f.slot);
-    });
-  }
-
   tiles.forEach(f => root.add(f.obj));
   // Everything on the axis ends flush on the face it meets, so each joint draws as an outline instead of vanishing
   // inside a solid. The hex faces of the shell sit FACE_IN from its centre; the core is the same shell at CORE_S.
   const FACE_IN = top.c.length(), Z_FRONT = FACE_IN, Z_AFT = -FACE_IN;      // back of the front tile, inside of the aft cap
-  const Z_CORE_F = Z_BOOM + CORE_S*FACE_IN, Z_CORE_A = Z_BOOM - CORE_S*FACE_IN, REF_H = 0.12;
+  const Z_CORE_F = Z_CORE + CORE_S*FACE_IN, Z_CORE_A = Z_CORE - CORE_S*FACE_IN, REF_H = 0.12;
   const axial = (key, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6)); o.position.z = (z0 + z1)/2; root.add(o); return o; };
   // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
   axial('aft', 0.18, Z_AFT, Z_AFT + REF_H);
   axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A);   // spine: isolation strut from the housing to the core, carrying the calyx shields
 
-  // steel wire: drawn as a single line, plus a thin tube that never draws on screen (it would hide the line) but goes
-  // into the glTF export, which swaps in its own materials. Unit length on +z, scaled to fit.
-  const wireGeo = new T.CylinderGeometry(0.004, 0.004, 1, 4, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
-  const wireLine = new T.BufferGeometry().setFromPoints([new V3(0, 0, 0), new V3(0, 0, 1)]);
-  const ghostMat = new T.MeshBasicMaterial({ colorWrite:false, depthWrite:false });
-  function wire(key){
-    const g = new T.Group(), m = new T.Mesh(wireGeo, ghostMat); m.name = key; m.userData.key = key;
-    g.add(m, new T.Line(wireLine, lineMat(key)));
-    return g;
-  }
-  const struts = new T.Group(); root.add(struts);
-  const strutGeo = new T.BoxGeometry(0.03, 0.03, 1), zUp = new V3(0,0,1);
-  movers.forEach(f => { f.strut = part('struts', strutGeo); struts.add(f.strut); });
+  // spokes: hollow 10 mm tubes, unit length on +z, stretched to fit; and the ball joints at their ends
+  const SPOKE_R = 0.005, BALL_R = 0.012;
+  const spokeGeo = new T.CylinderGeometry(SPOKE_R, SPOKE_R, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
+  const ballGeo = new T.IcosahedronGeometry(BALL_R, 0);
 
-  // ---- booms and horns ----
-  const boomGeo = new T.BoxGeometry(1, 0.05, 0.05).translate(0.5, 0, 0);
   // ---- horns. One Horn class, two types; every horn on the craft is a HornA or a HornB. ----
-  // A pentagonal horn: feed (waveguide), flare, and a straight-bevelled lip round the mouth, which is where the port-web
-  // wires clip on. A type only states its sizes. Its shape is built from them once, the first time one is made, and
-  // every horn of that type reuses it, so a change to a type changes all of its horns. The feed is the same on both.
-  // Each mount (boom tips, tile stalks, port webs) carries 12: 6 of each type.
-  const LIP_H = TH/2;                                                          // lip rises half a tile thickness past the mouth
+  // Each horn is a receive array of its own, built like a microphone. From the front: the face, a pentagonal puck that
+  // carries the transducer elements and takes the port-web spokes on its corners; and the body behind it, a pentagonal
+  // prism for the electronics. Its signal leaves through the spokes (see the port webs).
+  // A type only states its sizes. Its shape is built from them once, the first time one is made, and every horn of
+  // that type reuses it, so a change to a type changes all of its horns.
+  // There are 12, one in each port of the shell: 6 of each type.
+  const PUCK_H = 0.03;                                                        // face thickness
   const pent = (rt, rb, h, open) => zCyl(rt, rb, h, 5, open).rotateZ(PI/2);   // pentagonal section, corner 0 on +x
+  const pentCorner = (k, r) => new V3(Math.cos(k*2*PI/5)*r, Math.sin(k*2*PI/5)*r, 0);
   const hornCount = {};
   class Horn extends T.Group {
-    static waveguide = pent(0.04, 0.04, 0.1);
-    static get lip(){ return this.mouth*1.3; }                                  // lip corner radius
-    static get shape(){                                                         // this type's flare and lip
-      if (!Object.prototype.hasOwnProperty.call(this, '_shape'))
-        this._shape = { flare:pent(this.mouth, this.throat, this.len, true), lip:pent(this.lip, this.mouth, LIP_H, true) };
+    static get puck(){ return this.body*1.3; }   // face corner radius: the face overhangs the body, and the spokes join there
+    static get reach(){ return this.depth; }      // back of the body to the back of the face
+    static get shape(){                              // this type's parts, built on first use
+      if (!Object.prototype.hasOwnProperty.call(this, '_shape')) {
+        const z = PUCK_H/2 + 0.001, rIn = 0.8*this.puck, pitch = 0.05, s3 = Math.sqrt(3);
+        const corners = [0, 1, 2, 3, 4].map(k => pentCorner(k, rIn));
+        const inside = (x, y) => corners.every((a, k) => { const b = corners[(k + 1) % 5]; return (b.x - a.x)*(y - a.y) - (b.y - a.y)*(x - a.x) >= 0; });
+        const dots = [];   // stand-in for the transducer elements, on the same kind of lattice as the tiles
+        for (let j = -8; j <= 8; j++) for (let i = -8; i <= 8; i++){
+          const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
+          if (inside(x, y)) dots.push(new V3(x, y, z + 0.001));
+        }
+        this._shape = {
+          body: pent(this.body, this.body, this.depth),
+          puck: pent(this.puck, this.puck, PUCK_H),
+          inset: new T.BufferGeometry().setFromPoints([0, 1, 2, 3, 4, 0].map(k => pentCorner(k, 0.88*this.puck).setZ(z))),
+          dots: new T.BufferGeometry().setFromPoints(dots),
+        };
+      }
       return this._shape;
     }
-    // mount: the mount it rides on. It only goes into the name: Horn A1 (port webs), Horn B4 (boom tips), ...
-    constructor(mount){
+    constructor(){
       super();
-      const H = this.kind = this.constructor, s = H.shape, tag = H.label + '/' + mount;
-      hornCount[tag] = (hornCount[tag] || 0) + 1;
-      this.name = `${H.label}${hornCount[tag]} (${mount})`;
-      [['waveguide', Horn.waveguide, 0.075], ['flare', s.flare, 0.125 + H.len/2], ['lip', s.lip, 0.125 + H.len + LIP_H/2]]
-        .forEach(([n, geo, z]) => { const p = part(H.key, geo, { name:`${H.label} ${n}` }); p.position.z = z; this.add(p); });
+      const H = this.kind = this.constructor, s = H.shape, add = (n, geo, z) => {
+        const p = part(H.key, geo, { name:`${H.label} ${n}` }); p.position.z = z; this.add(p); return p; };
+      this.name = H.label + (hornCount[H.label] = (hornCount[H.label] || 0) + 1);   // Horn A1 .. A6, Horn B1 .. B6
+      // the back of the body sits at the horn's origin, the face looks down +z
+      add('body', s.body, H.depth/2);
+      const face = add('face', s.puck, H.reach + PUCK_H/2);
+      face.add(new T.Line(s.inset, lineMat(H.key)), new T.Points(s.dots, dotMat));
     }
-    get reach(){ return 0.125 + this.kind.len; }   // from the back of the feed to the mouth
+    get reach(){ return this.kind.reach; }
   }
   // A: vibrometry, 10 GHz receive. B: harmonic, 20 GHz receive, half the wavelength so a smaller horn.
-  class HornA extends Horn { static key = 'vib';  static label = 'Horn A'; static mouth = 0.16; static throat = 0.03; static len = 0.35; }
-  class HornB extends Horn { static key = 'harm'; static label = 'Horn B'; static mouth = 0.09; static throat = 0.02; static len = 0.22; }
-
-  const booms = [];
-  for (let i = 0; i < 12; i++){
-    const ang = i*PI/6, b = { ang, tip:2.8, tipT:2.1 };
-    b.obj = part('booms', boomGeo);
-    b.obj.position.set(Math.cos(ang)*BOOM_R0, Math.sin(ang)*BOOM_R0, Z_BOOM); b.obj.rotation.z = ang;
-    root.add(b.obj);
-    b.horn = i % 2 ? new HornA('boom tips') : new HornB('boom tips');
-    b.horn.rotation.z = ang; root.add(b.horn);
-    // riser: hinged mode only, lifts the horn mouth level with the array face so no tile shadows it
-    b.lift = 1.40 - Z_BOOM - b.horn.reach;
-    b.riser = part('booms', new T.BoxGeometry(0.04, 0.04, 1).translate(0, 0, 0.5));
-    b.riser.rotation.z = ang; b.riser.visible = false; root.add(b.riser);
-    booms.push(b);
-  }
+  // body: corner radius of the body; depth: length of the body, back to face.
+  class HornA extends Horn { static key = 'vib';  static label = 'Horn A'; static body = 0.16; static depth = 0.19; }
+  class HornB extends Horn { static key = 'harm'; static label = 'Horn B'; static body = 0.09; static depth = 0.14; }
 
   const beam = new T.Line(new T.BufferGeometry().setFromPoints([new V3(0,0,1.8), new V3(0,0,5)]), beamMat);
   beam.computeLineDistances(); root.add(beam);
 
-  // ---- pose update, t = 0 stowed .. 1 active, in three beats ----
-  //  lift:   tiles unlatch and rise off the shell onto tiered shells (outer-ring tiles highest)
-  //  slide:  each tile rides its shell to a dock above its slot, forming a bud over the ring
-  //  unfurl: booms telescope out, tiles ride them down and tip flat
+  // ---- pose, t = 0 stowed .. 1 open ----
+  // The petals open at the root first, then each arm uncurls outward. Every hinge only ever opens away from the shell.
+  // Concave / convex is a few degrees of over- or under-travel per hinge.
   const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x*x*(3 - 2*x);
-  const tmp = new V3(), tmp2 = new V3(), dir = new V3(), nn = new V3(), pk = new V3();
-  const qt = new T.Quaternion(), qo = new T.Quaternion(), qc = new T.Quaternion();
-  function pose(t){
-    const a = ss(t/0.22), b = ss((t - 0.22)/0.38), c = ss((t - 0.6)/0.4);
-    movers.forEach((f, i) => {
-      dir.copy(f.n).applyQuaternion(qt.set(0,0,0,1).slerp(f.qslide, b));
-      pk.copy(dir).multiplyScalar(f.rs + f.lift*a);
-      qo.copy(f.qs).slerp(f.qk, b);
-      qo.premultiply(qc.setFromUnitVectors(nn.set(0,0,1).applyQuaternion(qo), dir));   // keep the tile tangent to its shell
-      f.obj.position.lerpVectors(pk, f.pd, c);
-      f.obj.quaternion.copy(qo).slerp(f.qd, c);
-      // carriage foot never leaves hardware: rides the core shell during the slide, down to its boom root, then out along the boom
-      if (f === top) tmp.set(0, 0, Z_BOOM + CORE_RAD);
-      else {
-        const c1 = ss(c/0.3), c2 = ss((c - 0.3)/0.7), pol = Math.acos(Math.max(-1, Math.min(1, dir.z))), po = pol + (PI/2 - pol)*c1;
-        const ph = Math.atan2(dir.y, dir.x) , rf = CORE_RAD + (f.fr - CORE_RAD)*c2;
-        tmp.set(Math.cos(ph)*Math.sin(po)*rf, Math.sin(ph)*Math.sin(po)*rf, Z_BOOM + Math.cos(po)*CORE_RAD + 0.025*c2);
-      }
-      tmp2.set(0, 0, -TH/2).applyQuaternion(f.obj.quaternion).add(f.obj.position);
-      f.strut.position.addVectors(tmp, tmp2).multiplyScalar(0.5); f.strut.scale.z = Math.max(tmp.distanceTo(tmp2), 1e-3);
-      f.strut.quaternion.setFromUnitVectors(zUp, nn.subVectors(tmp2, tmp).normalize());
-    });
-    aft.obj.position.copy(aft.ps); aft.obj.quaternion.copy(aft.qs);
-    setBooms(c, tileHorns ? 'tipT' : 'tip');
-    setStalks(ss((c - 0.45)/0.35), ss((c - 0.8)/0.2), 'phiC');
-    setWebs();
-    beam.visible = t > 0.999;
-  }
-  function setBooms(c, key, rise){
-    rail.visible = !((tileHorns || webHorns) && hinged);
-    booms.forEach(bm => {
-      bm.obj.visible = rail.visible; bm.horn.visible = !(tileHorns || webHorns);
-      const r = R_STOW + (bm[key] - R_STOW)*c, x = Math.cos(bm.ang)*r, y = Math.sin(bm.ang)*r, up = bm.lift*(rise || 0);
-      bm.obj.scale.x = r - BOOM_R0;
-      bm.horn.position.set(x, y, Z_BOOM + up);
-      bm.riser.visible = !(tileHorns || webHorns) && up > 0.01; bm.riser.position.set(x, y, Z_BOOM); bm.riser.scale.z = Math.max(up, 0.01);
-    });
-  }
-
-  // Hinged pose: petals open at the root first, then each arm uncurls outward, then the booms extend and the horns rise.
-  // Every hinge only ever opens away from the shell. Concave / convex is a few degrees of over- or under-travel per hinge.
+  const tmp = new V3(), tmp2 = new V3(), nn = new V3(), pk = new V3();
   const hm = new T.Matrix4();
+  let kappa = 0;
+  const pq = new T.Quaternion();
   function hingeTransforms(u, k){
     order.forEach(f => {
       if (!f.par) { f.G.identity(); return; }
@@ -508,60 +425,37 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       f.G.multiplyMatrices(f.par.G, hm);
     });
   }
-  function poseHinged(t){
-    // with port webs there are no booms or stalks to run out afterwards, so the unfold takes the whole travel
-    hingeTransforms(webHorns ? t : t/0.6, 1 + 0.08*kappa);
+  function pose(t){
+    hingeTransforms(t, 1);
+    // the frames lock flat; then the actuators tip each panel toward the axis (concave) or away from it (convex)
+    const act = kappa*ss((t - 0.9)/0.1);
     order.forEach(f => {
       f.obj.position.copy(f.ps).applyMatrix4(f.G);
       f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
+      f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA));
     });
-    setBooms(ss((t - 0.6)/0.25), 'tipH', ss((t - 0.85)/0.15));
-    setStalks(ss((t - 0.6)/0.25), ss((t - 0.85)/0.15), 'phiP');
     setWebs();
     beam.visible = t > 0.999;
   }
-  // hinged layout leaves tile-sized holes; park each horn at the first radius that is clear of every tile
+  // the fully open net, which the port webs plan their anchors against
   hingeTransforms(1, 1);
-  order.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); });
-  booms.forEach(bm => {
-    bm.tipH = [2.0, 2.8, 3.3, 3.9, 4.3, 4.8, 5.3, 5.8].find(r => order.every(f => Math.hypot(f.flat.x - r*Math.cos(bm.ang), f.flat.y - r*Math.sin(bm.ang)) >= 0.76)) || 5.8;
-  });
-  order.forEach(f => { f.flatQ = new T.Quaternion().setFromRotationMatrix(f.G).multiply(f.qs); });
-
-  // ---- alternative horn mounts: a short telescoping stalk on the back of each rim tile, like a stamen on a petal ----
-  // Stowed, the stalk is retracted and the horn hangs inward behind its tile. Active, the stalk runs out past a tile
-  // vertex and the horn flips over to face forward. The 12 equatorial tiles carry them: 6 vibrometry, 6 harmonic.
-  const STALK = 0.9, hornTiles = north.concat(south), yAx = new V3(0,1,0), qy = new T.Quaternion();
-  function pickDir(f, cen, quat, others){   // the tile vertex whose stalk tip ends up furthest from every other tile
-    let best = 0, bs = -1;
-    for (let k = 0; k < 6; k++){
-      const v = new V3(Math.cos(k*PI/3), Math.sin(k*PI/3), 0).multiplyScalar(STALK).applyQuaternion(quat).add(cen);
-      let m = Infinity; others.forEach(o => { m = Math.min(m, o.distanceTo(v)); });
-      const sc = m + 0.02*Math.hypot(v.x, v.y);
-      if (sc > bs + 1e-6) { bs = sc; best = k; }
-    }
-    return best*PI/3;
-  }
-  hornTiles.forEach(f => {
-    f.phiP = pickDir(f, f.flat, f.flatQ, order.filter(g => g !== f).map(g => g.flat));
-    f.stalk = part('booms', new T.BoxGeometry(1, 0.035, 0.035).translate(0.5, 0, 0)); f.stalk.position.z = -TH/2 - 0.02; f.obj.add(f.stalk);
-    f.hp = north.includes(f) ? new HornA('tile stalks') : new HornB('tile stalks'); f.obj.add(f.hp);
-  });
-  function pickCarriageDirs(){ hornTiles.forEach(f => { f.phiC = pickDir(f, f.pd, f.qd, movers.filter(g => g !== f).map(g => g.pd)); }); }
-  function setStalks(ext, flip, key){
-    hornTiles.forEach(f => {
-      f.stalk.visible = f.hp.visible = tileHorns; if (!tileHorns) return;
-      const phi = f[key], L = 0.22 + (STALK - 0.22)*ext;
-      f.stalk.rotation.z = phi; f.stalk.scale.x = L;
-      f.hp.position.set(Math.cos(phi)*L, Math.sin(phi)*L, -TH/2 - 0.02);
-      f.hp.quaternion.setFromAxisAngle(zUp, phi).multiply(qy.setFromAxisAngle(yAx, PI*(1 - flip)));
+  order.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); f.flatQ = new T.Quaternion().setFromRotationMatrix(f.G).multiply(f.qs); });
+  // Each panel tips in proportion to its distance from the axis, so all their normals meet at one point on the axis: a
+  // faceted dish, with the outermost panel at TILT. The panels do not also piston to the dish's depth: the elements make
+  // up that path difference in phase.
+  (function(){
+    const r = f => Math.hypot(f.flat.x, f.flat.y), rMax = Math.max(...order.map(r));
+    order.forEach(f => { if (r(f) < 1e-6) return;
+      f.tipA = Math.atan(r(f)/rMax*Math.tan(TILT));
+      f.tipAx.set(-f.flat.y, f.flat.x, 0).normalize().applyQuaternion(f.flatQ.clone().invert());   // z x radial, in the frame
     });
-  }
-  // ---- third horn mount: port webs (hinged mode only) ----
-  // Stowed, each of the 12 pentagonal gaps in the shell holds one horn at its centre, mouth flush with the shell,
-  // slung on steel wires. When the petal opens, each gap relaxes into an empty hexagonal cell beside its tiles; every
-  // corner of that cell is an anchor, with two wires from it, across the tile's thickness, to a corner of the horn's
-  // bevelled lip. The wires telescope and swivel at both ends, the horn turns to keep its lip corners facing them,
+  })();
+
+  // ---- port webs ----
+  // Stowed, each of the 12 pentagonal gaps in the shell holds one horn at its centre, face flush with the shell, slung
+  // on spokes. When the petal opens, each gap relaxes into an empty hexagonal cell beside its tiles; every corner of
+  // that cell is an anchor, with two spokes from it, across the tile's thickness, to a corner of the horn's face. The
+  // spokes telescope and swivel at both ends, the horn turns to keep its face corners facing them,
   // and it stays at the centre.
   // Where the peel tears a gap between two arms, the horn stays with the larger group of tiles.
   const webs = ico.map(c0 => {
@@ -591,29 +485,42 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     let e1 = null;
     cand.forEach(a => {
       if (cand.some(b => b !== a && b.fl.distanceTo(a.fl) < 0.1 && wins(b, a))) return;
-      // the horn lip corner that faces this anchor when stowed
+      // the face corner that faces this anchor when stowed
       const d = a.f.verts[a.k].clone().sub(C); d.addScaledVector(n0, -d.dot(n0));
       if (!e1) e1 = d.clone().normalize();
       const e2 = new V3().crossVectors(n0, e1), vi = (Math.round(Math.atan2(d.dot(e2), d.dot(e1))/(2*PI/5)) % 5 + 5) % 5;
       w.anchors.push({ f:a.f, loc:a.loc, vi });
     });
-    w.obj = new T.Group(); w.horn = vib ? new HornA('port webs') : new HornB('port webs');
-    w.horn.position.z = -w.horn.reach; w.lip = w.horn.kind.lip; w.obj.add(w.horn); root.add(w.obj);
-    w.anchors.forEach(() => { for (let s = 0; s < 2; s++){ const wr = wire('web'); w.wires.push(wr); root.add(wr); } });   // front and back edge of the corner
+    w.obj = new T.Group(); w.horn = vib ? new HornA() : new HornB();
+    w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
+    // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a ball joint: a ball with a bore through
+    // it, in a socket, so the fibre passes straight through and the joint seals while it swivels. A pair of spokes runs
+    // from the front and back edge of a tile corner to the front and back edge of a face corner, with a joint at each of
+    // the four ends: the horn's face has a rim of its own, just like the tile. The fibre runs on through
+    // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
+    // so each horn has several paths home: lose one and the signal takes another.
+    const ball = (parent, p) => { const b = part('web', ballGeo, { name:'Ball joint' }); b.position.copy(p); parent.add(b); };
+    w.anchors.forEach(an => {
+      for (let s = 0; s < 2; s++){
+        const sp = part('web', spokeGeo, { name:'Spoke' }); w.wires.push(sp); root.add(sp);
+        ball(an.f.obj, an.loc.clone().setZ(s ? FR_TH/2 : -FR_TH/2));
+      }
+    });
+    new Set(w.anchors.map(an => an.vi)).forEach(vi => { for (const z of [0, PUCK_H]) ball(w.horn, pentCorner(vi, w.puck).setZ(w.horn.reach + z)); });
     return w;
   });
+
   const ex = new V3(), ey = new V3(), wd = new V3(), hb = new T.Matrix4(), cen = new V3();
   function setWire(wr, a, b){
     wd.subVectors(b, a); wr.position.copy(a); wr.scale.z = Math.max(wd.length(), 1e-3);
     wr.quaternion.setFromUnitVectors(zUp, wd.normalize());
   }
-  // The horn has no drive of its own: its pose follows from where the tiles put the anchors. The telescopic wires
+  // The horn has no drive of its own: its pose follows from where the tiles put the anchors. The telescopic spokes
   // share the load, so they run out to equal lengths and the horn settles at the point equidistant from its anchors:
-  // the centre of the least-squares circle through them. The front and back wire of each pair hold the horn square
+  // the centre of the least-squares circle through them. The front and back spoke of each pair hold the horn square
   // to the plane of its anchors, so that plane's normal is the horn axis.
   function setWebs(){
     webs.forEach(w => {
-      w.obj.visible = webHorns; w.wires.forEach(wr => { wr.visible = webHorns; }); if (!webHorns) return;
       const P = w.obj.position, n = nn.set(0, 0, 0), basis = () => {
         ex.set(Math.abs(n.x) < 0.9 ? 1 : 0, Math.abs(n.x) < 0.9 ? 0 : 1, 0); ex.addScaledVector(n, -ex.dot(n)).normalize(); ey.crossVectors(n, ex); };
       w.anchors.forEach(an => { an.p = (an.p || new V3()).copy(an.loc).applyQuaternion(an.f.obj.quaternion).add(an.f.obj.position); });
@@ -630,8 +537,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         sxx += x*x; sxy += x*y; syy += y*y; sxz += x*z; syz += y*z;
       });
       const det = sxx*syy - sxy*sxy, cx = det > 1e-9 ? (sxz*syy - syz*sxy)/(2*det) : 0, cy = det > 1e-9 ? (syz*sxx - sxz*sxy)/(2*det) : 0;
-      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, -LIP_H);   // lip corners at mid-thickness, level with the anchors
-      // clock the pentagon about its axis so the lip corners face their anchors as closely as the cell allows
+      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, Z_PL + PL_TH/2 - PUCK_H);   // centred on the anchors, face flush with the panels
+      // clock the pentagon about its axis so the face corners face their anchors as closely as the cell allows
       let sx = 0, sy = 0;
       w.anchors.forEach(an => {
         tmp.subVectors(an.p, P);
@@ -640,39 +547,37 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const ph = Math.atan2(sy, sx);
       tmp.copy(ex).multiplyScalar(Math.cos(ph)).addScaledVector(ey, Math.sin(ph));
       w.obj.quaternion.setFromRotationMatrix(hb.makeBasis(tmp, tmp2.crossVectors(n, tmp), n));
-      // two wires per anchor: from the front and back edge of the tile corner to the matching corner of the bevelled lip
+      // two spokes per anchor: front edge to front edge and back edge to back edge, tile corner to face corner
       w.anchors.forEach((an, i) => {
         const ang = an.vi*2*PI/5;
-        pk.set(Math.cos(ang)*w.lip, Math.sin(ang)*w.lip, LIP_H).applyQuaternion(w.obj.quaternion).add(P);
         for (let s = 0; s < 2; s++){
-          tmp.set(0, 0, s ? TH/2 : -TH/2).applyQuaternion(an.f.obj.quaternion).add(an.p);
+          pk.set(Math.cos(ang)*w.puck, Math.sin(ang)*w.puck, s ? PUCK_H : 0).applyQuaternion(w.obj.quaternion).add(P);
+          tmp.set(0, 0, s ? FR_TH/2 : -FR_TH/2).applyQuaternion(an.f.obj.quaternion).add(an.p);
           setWire(w.wires[2*i + s], tmp, pk);
         }
       });
     });
   }
-  const hingeBits = [];
   const hingeGeo = zCyl(0.018, 0.018, 0.3, 6);
   order.forEach(f => { if (!f.par) return;
     const inv = f.qs.clone().invert();
     const h = part('hinge', hingeGeo, { angle:50 });
     h.position.copy(f.hP).sub(f.ps).applyQuaternion(inv);
     h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
-    f.obj.add(h); hingeBits.push(h);
+    f.obj.add(h);
   });
-  hingeBits.push(axial('hinge', 0.04, Z_CORE_F, Z_FRONT));   // centre mast: core to the back of the front tile
+  axial('hinge', 0.04, Z_CORE_F, Z_FRONT);   // centre mast: core to the back of the front tile. Every signal comes home through it
 
   // ---- renderer, camera, controls ----
-  let hinged = false, tileHorns = false, webHorns = false;
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const camera = new T.PerspectiveCamera(32, 1, 0.1, 200);
   const controls = new T.OrbitControls(camera, canvas);
   controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 2.5; controls.maxDistance = 40;
   function resetView(){
-    const asp = view.clientWidth/Math.max(1, view.clientHeight), d = (hinged ? 22 : 12.5)/Math.min(1, asp*0.95);
+    const asp = view.clientWidth/Math.max(1, view.clientHeight), d = 22/Math.min(1, asp*0.95);
     camera.position.set(0.55, 0.36, 0.75).normalize().multiplyScalar(d);
-    controls.target.set(0, 0, hinged ? 0.5 : 0); controls.update();
+    controls.target.set(0, 0, 0.5); controls.update();
   }
   function resize(){
     const w = view.clientWidth, h = view.clientHeight; if (!w || !h) return;
@@ -693,15 +598,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
   // ---- UI ----
   const PARTS = [
-    ['tiles', 'Phased-array tiles ×19', 'Transmit subarrays. Shell faces when stowed, the array when active.'],
-    ['aft',   'Aft cap and inertial reference', 'The 20th hexagon never deploys. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
-    ['struts','Tile carriages', 'Carriage mode. One arm per tile; its foot rides the core shell, then out along a boom.'],
-    ['hinge', 'Edge hinges and centre mast', 'Hinged mode. 18 hinges on shared tile edges; the front tile stays fixed on the mast.'],
-    ['web',   'Port webs', 'Third horn mount, hinged mode. With the hinged peel this is the Webbed Orchid. A horn slung at the centre of each gap in the shell, on steel wires: a pair from each corner of the open cell to the bevelled lip of the horn. The wires telescope and swivel at their anchors.'],
-    ['ring',  'Carriage ring', '⌀ 2.0 m rail. The booms retract to it when stowed.'],
-    ['booms', 'Telescoping booms and stalks', 'Booms: every carriage tile lands on one, and each can carry a horn. Stalks: the alternative horn mount, one on the back of each rim tile.'],
-    ['vib',   'Vibrometry horns ×6', '10 GHz receive. Read the hull echo timing for heartbeat and breath.'],
-    ['harm',  'Harmonic horns ×6', '20 GHz receive, interleaved with the others. Listen for the second-harmonic junction echo.'],
+    ['tiles', 'Array panels ×19', 'Transmit subarrays: flat element plates, each on its own frame. They carry no cables but a short service loop to that frame.'],
+    ['frame', 'Fold frames ×19', 'The structure. Stowed they are the shell; hinged at their edges, they unfold from the front frame and lock flat. Ribbed open at the back, with the fibre running in their edges.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, a hexapod between frame and panel. With the frames locked flat they tip each panel toward the axis for a concave face or away from it for convex: a faceted dish.'],
+    ['aft',   'Aft cap and inertial reference', 'The 20th frame and panel never deploy. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
+    ['hinge', 'Edge hinges and centre mast', '18 hinges on shared frame edges, each latching at a hard stop when flat; the front frame stays fixed on the mast.'],
+    ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
+    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a body. Read the hull echo timing for heartbeat and breath.'],
+    ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo.'],
     ['core',  'Core shell', 'The outer shell again at 30% scale: 20 hexagons, 12 pentagons. Houses the singularity.'],
     ['rad',   'Spine and calyx shields ×3', 'Isolation strut with three V-groove shields. They shed core heat sideways so the tail stays cold and quiet.']
   ];
@@ -726,36 +630,23 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     markState();
   }));
   dep.addEventListener('input', () => { t = goal = dep.value/100; markState(); });
-  function setMech(h){
-    if (!h && webHorns) webHorns = false;   // carriages scatter the tiles round each port, so fall back to boom tips
-    const mt = webHorns ? 2 : tileHorns ? 1 : 0;
-    document.querySelectorAll('[data-mount]').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.mount === mt)));
-    const moved = hinged !== h; hinged = h; if (moved || !camera.position.lengthSq()) resetView();
-    struts.visible = !h; hingeBits.forEach(o => { o.visible = h; });
-    document.querySelectorAll('[data-mech]').forEach(x => x.setAttribute('aria-pressed', String(!!+x.dataset.mech === h)));
-    document.getElementById('l-dep').textContent = webHorns ? 'Deployment: open, uncurl' : h ? 'Deployment: open, uncurl, extend, raise' : 'Deployment: lift, slide, unfurl';
-    const span = 2*(Math.max.apply(null, order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5), tips = booms.map(bm => 2*bm.tipH);
-    document.getElementById('d-ap').textContent = h ? span.toFixed(1) + ' m, thinned' : '5.0 m, filled';
-    document.getElementById('d-ring').textContent = webHorns ? 'in the shell ports' : tileHorns ? 'on rim-tile stalks' : h ? '⌀ ' + Math.min.apply(null, tips).toFixed(1) + ' to ' + Math.max.apply(null, tips).toFixed(1) + ' m' : '⌀ 5.6 m';
-  }
-  document.querySelectorAll('[data-mount]').forEach(b => b.addEventListener('click', () => {
-    const m = +b.dataset.mount; tileHorns = m === 1; webHorns = m === 2;
-    setMech(webHorns ? true : hinged);   // port webs only exist on the hinged shell
-  }));
-  document.querySelectorAll('[data-mech]').forEach(b => b.addEventListener('click', () => setMech(!!+b.dataset.mech)));
   document.querySelectorAll('[data-face]').forEach(b => b.addEventListener('click', () => {
-    kappa = +b.dataset.face; setDeployedPoses(); pickCarriageDirs();
+    kappa = +b.dataset.face;
     document.querySelectorAll('[data-face]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
   document.getElementById('reset').addEventListener('click', resetView);
 
-  setDeployedPoses(); pickCarriageDirs(); resize(); webHorns = true; setMech(true); paint();   // opens as the Webbed Orchid
+  // the open net spans the tile centre furthest out, plus half a tile either side
+  document.getElementById('d-ap').textContent = (2*(Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5)).toFixed(1) + ' m, thinned';
+  // stowed: the furthest panel corner from the shell centre
+  document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, PL_R)).toFixed(1) + ' m';
+  resize(); resetView(); paint();
   let last = performance.now();
   (function loop(now){
     const dt = Math.min(0.05, (now - last)/1000); last = now;
-    const dur = webHorns ? 2.7 : 4.5;   // seconds end to end; the web peel is only the unfold, at the same pace as in the other modes
+    const dur = 2.7;   // seconds end to end
     if (t !== goal) { t = goal > t ? Math.min(goal, t + dt/dur) : Math.max(goal, t - dt/dur); dep.value = Math.round(t*100); }
-    (hinged ? poseHinged : pose)(t);
+    pose(t);
     controls.update(); renderer.render(scene, camera);
     requestAnimationFrame(loop);
   })(last);
