@@ -398,18 +398,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const movers = tiles.filter(f => f !== aft);
 
   // ---- core: the AEPEC, a Dyson shell round a small singularity ----
-  // The outer shell again at CORE_S scale, and built the same way. A frame of struts on every edge; a collector plate on
-  // each of the 20 hexagons, looking inward at the singularity; the 12 pentagons left open, as the outer shell's are, so
+  // The outer shell again at CORE_S scale. A collector plate on each of the 20 hexagons, almost edge to edge, looking
+  // inward at the singularity; the 12 pentagons left open, as the outer shell's are, so
   // the inside shows. At the centre, held by nothing, the containment: a small faceted body round the singularity itself.
   (function(){
-    const items = [], put = v => v.clone().multiplyScalar(CORE_S).setZ(v.z*CORE_S + Z_CORE), seen = new Set(), q = new T.Quaternion(), one = new V3(1, 1, 1);
+    const items = [], put = v => v.clone().multiplyScalar(CORE_S).setZ(v.z*CORE_S + Z_CORE), one = new V3(1, 1, 1);
     tiles.forEach(f => {
       const plate = new T.Matrix4().compose(put(f.c), f.qs, one);
-      items.push([hexPrism(A*CORE_S*0.86, 0.018), plate]);   // collector plate
-      f.verts.forEach((a, k) => { const b = f.verts[(k + 1) % 6], mid = a.clone().add(b).multiplyScalar(0.5), key = mid.toArray().map(x => x.toFixed(3)).join();
-        if (seen.has(key)) return; seen.add(key);
-        const d = b.clone().sub(a), len = d.length()*CORE_S;
-        items.push([zCyl(0.007, 0.007, len, 6), new T.Matrix4().compose(put(mid), q.setFromUnitVectors(zUp, d.normalize()).clone(), one), 40]); }); });
+      items.push([hexPrism(A*CORE_S*0.96, 0.018), plate]); });   // collector plate, almost edge to edge with its neighbours
     items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // containment
     lump('core', 'Core', items);
   })();
@@ -468,10 +464,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     lump('cap', 'Capacitor bank', items); })();
 
   // ---- shadow shield ----
-  // The calyx, back where it earns its place: two nested cups on the mast, open toward the core. Whatever the core
-  // throws forward meets them first, so the processors sit in their shadow. Only the mast passes through.
-  [[0.29, Z_CORE_F - 0.06, 0.16], [0.22, Z_CORE_F + 0.01, 0.12]].forEach(([r, z, h]) => { const cup = part('shield', zCyl(0.06, r, h, 6, true), { name:'Shadow shield' });
-    cup.position.z = z + h/2; root.add(cup); });
+  // The calyx, back where it earns its place: one flat hexagonal disc on the mast, just ahead of the core. Whatever the
+  // core throws forward meets it first, so the processors sit in its shadow. Only the mast passes through.
+  axial('shield', 0.3, Z_CORE_F + 0.05, Z_CORE_F + 0.07).children[0].name = 'Shadow shield';
 
   // ---- processor cluster ----
   // The computer is a cluster: many small nodes working side by side, because the work is parallel. Nineteen tiles to
@@ -777,8 +772,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
-    ['core',  'AEPEC core', 'A Dyson shell round a small singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons look inward, the 12 pentagons stand open, and the containment floats at the centre.'],
-    ['shield', 'Shadow shield ×2', 'Two nested cups on the mast, open toward the core, so the processors sit in their shadow.'],
+    ['core',  'AEPEC core', 'A Dyson shell round a small singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons look inward, almost edge to edge; the 12 pentagons stand open, and the containment floats at the centre.'],
+    ['shield', 'Shadow shield', 'One flat disc on the mast, just ahead of the core, so the processors sit in its shadow.'],
     ['dsp',   'Processor cluster', 'The computer, an open cage round the mast where every fibre comes home: eighteen nodes on three tiers, working in parallel on nineteen tiles and twelve horns at once. Beamforming, and digitising and analysing what the horns hear.'],
     ['cap',   'Capacitor bank', 'Six banded cells round the spine, in a cage of rails with a bus deck at each end. The core is small and only trickles power; the cells store it over days and the array spends it in one hit. If they can no longer fill, the craft never opens.'],
     ['rad',   'Spine', 'Isolation strut from the core to the inertial reference, so the still point stays still.']
