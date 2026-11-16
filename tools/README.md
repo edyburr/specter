@@ -20,8 +20,8 @@ python3 tools/postprocess.py    # or: python3 tools/postprocess.py renders/orchi
 
 `render_orchid.js` loads three.js and its add-ons from a CDN, so it needs a network connection.
 
-In Blender, parts of one class share one mesh: every tile is a frame, a panel and six actuators, and all 20 frames share
-one mesh, as do all panels and all actuator bodies and rods, each horn type's body and face are
+In Blender, parts of one class share one mesh: every tile is a frame (ring, delta frame, hinge halves and launch locks, fused), a panel (with its whiffles), a set of
+six actuator brackets and six shafts, and all 20 frames share one mesh, as do all panels, all bracket sets and all shafts, each horn type's body and face are
 one mesh used six times (`Horn A face`, ...), and all 114 spokes and every ball joint share one mesh each. Edit the
 mesh once and every copy follows. Each spoke is one straight piece that the animation stretches as it telescopes.
 

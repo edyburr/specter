@@ -212,19 +212,106 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // is declared here, so a tile never picks up a field anywhere else.
   const hexPrism = (r, h) => new T.CylinderGeometry(r, r, h, 6, 1)
     .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // axis -> z, vertex 0 -> +x
-  const LEG_R = 0.2, LEG_BODY = 0.09;   // actuator circle on frame and panel, length of an actuator's motor body
+  // ---- the tile mount, after the JWST segments (worked out on the panel bench, panel.html) ----
+  // Fixed, at the frame's level: a hexagonal ring on the tile's outline, the raceway for power and fibre, whose corners take
+  // the port-web spokes; inside it the delta frame, a hexagon with three arms toward the three neighbouring tiles; half a
+  // hinge on the ring opposite each arm; three launch-lock posts; six actuator brackets hanging under the arms.
+  // Moving: the panel (face sheet on an isogrid), three whiffles under it, and the six actuator shafts that push them.
+  // Everything of one kind is fused into one shape, so a tile is three solids and six shafts.
+  const MOUNT = (() => {
+    const S3 = Math.sqrt(3), deg = PI/180, V2 = T.Vector2, M4 = () => new T.Matrix4();
+    const dir2 = a => new V2(Math.cos(a), Math.sin(a)), dir3 = (a, r, z) => new V3(Math.cos(a)*r, Math.sin(a)*r, z || 0);
+    const hexPts = inr => Array.from({ length:6 }, (_, i) => dir2(i*PI/3).multiplyScalar(inr*2/S3));   // inradius in, corner 0 on +x
+    const slab = (outline, holes, z0, h) => { const sh = new T.Shape(outline); (holes || []).forEach(q => sh.holes.push(new T.Path(q)));
+      return new T.ExtrudeGeometry(sh, { depth:h, bevelEnabled:false }).translate(0, 0, z0); };
+    // a plate standing upright: its profile in (x, z), its thickness along y from y0 to y1
+    const upright = (prof, y0, y1) => new T.ExtrudeGeometry(new T.Shape(prof.map(([x, z]) => new V2(x, z))), { depth:y1 - y0, bevelEnabled:false }).rotateX(PI/2).translate(0, y1, 0);
+    const move = (x, y, z) => M4().makeTranslation(x, y, z);
+    // fuse shapes into one solid and one set of outlines. Each item: [geometry, matrix or null, outline angle]
+    const fuse = items => { const pos = [], edge = [];
+      items.forEach(([geo, m, angle]) => { const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
+        for (const v of g.attributes.position.array) pos.push(v);
+        for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });
+      return { pos, edge }; };
+    const done = f => { const solid = new T.BufferGeometry(), lines = new T.BufferGeometry();
+      solid.setAttribute('position', new T.Float32BufferAttribute(f.pos, 3)); solid.computeVertexNormals();
+      lines.setAttribute('position', new T.Float32BufferAttribute(f.edge, 3)); return { solid, lines }; };
+
+    const ZB = -FR_TH/2, ZT = FR_TH/2, PB = -PL_TH/2;       // frame underside and top; panel back, in the panel's own frame
+    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1;   // hinge axis; ring outer and inner inradius; arm tongue half-width at the ring
+    const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
+    const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
+    const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
+    const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2, WH_M = 0.02, SOCK_H = 0.007;   // whiffles
+    const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // actuators
+    const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06, MOT_R = 0.02, MOT_L = 0.045;   // hinge halves: barrel, lug span off the centre line, drive
+    const LOCK = 0.025, LOCK_R = 0.14;                      // launch locks: how far short of the panel they stop; where they stand
+
+    // ---- frame: ring, delta frame, hinge halves, launch locks ----
+    const frame = [];
+    const ringHole = [];
+    hexPts(RING_I).forEach((c, k) => { ringHole.push(c);
+      if (k % 2 === 0){ const u = dir2((30 + 60*k)*deg), t = dir2((120 + 60*k)*deg), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
+        ringHole.push(at(RING_I, -TG_W), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(RING_I, TG_W)); } });
+    frame.push([slab(hexPts(RING_O), [ringHole], ZB, FR_TH)]);
+    const deltaOut = [];
+    for (let k = 0; k < 6; k++){ const a = (30 + 60*k)*deg, u = dir2(a), t = dir2(a + PI/2), w = DL_HEX/S3;
+      const at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+      if (k % 2 === 0){ const ch = w - DL_TIP; deltaOut.push(at(DL_HEX, -w), at(DL_END - ch, -w), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(DL_END - ch, w)); }
+      else deltaOut.push(at(DL_HEX, -w)); }
+    const WIN = (() => { const hw = DL_HEX/S3 - WIN_M, ro = DL_END - WIN_M, k = hw - (DL_END + DL_TIP - WIN_M*Math.SQRT2 - ro); return { hw, ro, ri:WIN_RI, k }; })();
+    const armWindows = BASE.map(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s), { hw, ro, ri, k } = WIN;
+      return [at(ri + WIN_KI, -hw), at(ro - k, -hw), at(ro, -hw + k), at(ro, hw - k), at(ro - k, hw), at(ri + WIN_KI, hw), at(ri, hw - WIN_KI), at(ri, -hw + WIN_KI)]; });
+    frame.push([slab(deltaOut, [hexPts(DL_HOLE), ...armWindows], ZB, FR_TH)]);
+    // half a hinge opposite each arm: lug, barrel on the hinge axis (the shell's edge), drive beyond it. The neighbour's half
+    // lands on the other side of the centre line, so the two interleave on one pin.
+    const lug = upright([[RING_O, ZB], [AP, ZB - HG_R], [AP, ZB + HG_R], [RING_O, ZT]], HG_T0, HG_T1);
+    const barrel = new T.CylinderGeometry(HG_R, HG_R, HG_T1 - HG_T0, 6).translate(AP, (HG_T0 + HG_T1)/2, ZB);
+    const drive = new T.CylinderGeometry(MOT_R, MOT_R, MOT_L, 6).translate(AP, HG_T1 + MOT_L/2, ZB);
+    BASE.forEach(c => { const m = M4().makeRotationZ(c); frame.push([lug, m], [barrel, m, 40], [drive, m, 40]); });
+    // launch locks: tapered posts between the arms; for launch the actuators pull the panel down onto them
+    const gridNode = (i, j) => new V3((i + j/2)*GS, j*GS*S3/2, 0), inHex = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= GRID_N;
+    const snap = q => { let best = null, bd = Infinity; const j0 = Math.round(q.y/(GS*S3/2));
+      for (let j = j0 - 1; j <= j0 + 1; j++){ const i0 = Math.round(q.x/GS - j/2);
+        for (let i = i0 - 1; i <= i0 + 1; i++) if (inHex(i, j)){ const n = gridNode(i, j), d = Math.hypot(n.x - q.x, n.y - q.y); if (d < bd){ bd = d; best = n; } } }
+      return best; };
+    const zPB = Z_PL + PB, postH = zPB - LOCK - 0.004 - ZT;   // panel back in the frame's coordinates
+    [90, 210, 330].forEach(x => { const q = snap(dir3(x*deg, LOCK_R)), m = move(q.x, q.y, 0);
+      frame.push([zCyl(0.007, 0.015, postH, 6).translate(0, 0, ZT + postH/2), m, 40], [zCyl(0.013, 0.009, 0.004, 6).translate(0, 0, zPB - LOCK - 0.002), m, 40]); });
+
+    // ---- actuators: a ∪ bracket under the arm with a cylinder upright in it (fixed), and a shaft up through the arm's window ----
+    const act = [], legs = [], rAct = (WIN.ri + WIN.ro)/2, xLeg = (WIN.ro - WIN.ri)/2;
+    const uGeo = sg => { const a = xLeg, b = xLeg + U_T, L = BODY_L, kO = 0.014, kI = 0.005;
+      const g = upright([[-b + kO, -L], [b - kO, -L], [b, -L + kO], [b, 0], [a, 0], [a, -L + U_T + kI], [a - kI, -L + U_T],
+        [-a + kI, -L + U_T], [-a, -L + U_T + kI], [-a, 0], [-b, 0], [-b, -L + kO]], -BODY_D/2, BODY_D/2);
+      const pos = g.attributes.position, tn = sg*Math.tan(ACT_TILT);   // legs' tops cut to sit flat under the arm
+      for (let i = 0; i < pos.count; i++) if (pos.getZ(i) > -1e-6) pos.setZ(i, -pos.getY(i)*tn);
+      return g; };
+    const cyl = zCyl(BODY_CYL, BODY_CYL, BODY_L - U_T - 0.01, 6).translate(0, 0, -(BODY_L - U_T + 0.01)/2);
+    const hub = zCyl(HUB_R, HUB_R, U_T + 0.008, 6).translate(0, 0, -BODY_L + U_T/2);
+    const sockets = [];
+    BASE.forEach(c => [1, -1].forEach(sg => { const u = dir3(c, 1), t = dir3(c + PI/2, 1);
+      const ax = new V3(0, 0, Math.cos(ACT_TILT)).addScaledVector(t, -sg*Math.sin(ACT_TILT));
+      const o = u.clone().multiplyScalar(rAct).addScaledVector(t, sg*BOT_T).setZ(ZB), b = o.clone().addScaledVector(ax, -0.01);
+      const p = b.clone().addScaledVector(ax, (zPB - H_W - SOCK_H - BALL - b.z)/ax.z); p.z -= Z_PL;   // ball under the whiffle, in the panel's frame
+      const m = M4().makeBasis(u, new V3().crossVectors(ax, u), ax).setPosition(o);
+      act.push([uGeo(sg), m], [cyl, m, 40], [hub, m, 40]); legs.push({ b, p }); sockets.push(p); }));
+
+    // ---- panel: face sheet, isogrid ribs, whiffles with their feet and ball sockets ----
+    const panel = [[hexPrism(PL_R, FS_TH), move(0, 0, PL_TH/2 - FS_TH/2)]];
+    BASE.forEach(c => { const u = dir3(c, 1), t = dir3(c + PI/2, 1), loc = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+      const ri = WH_R1 - WH_M, ro = WH_R2 + WH_M, wi = WH_M, wo = GS/2 + WH_M*S3;
+      panel.push([slab([loc(ri, -wi), loc(ro, -wo), loc(ro, wo), loc(ri, wi)].map(q => new V2(q.x, q.y)), null, PB - H_W, H_W - FOOT_H)]);
+      [loc(WH_R1, 0), loc(WH_R2, GS/2), loc(WH_R2, -GS/2)].map(snap).forEach(f => panel.push([zCyl(0.011, 0.011, FOOT_H, 6), move(f.x, f.y, PB - FOOT_H/2), 40])); });
+    const sockH = SOCK_H + BALL*0.5;
+    sockets.forEach(p => { panel.push([zCyl(0.015, 0.015, sockH, 6), move(p.x, p.y, PB - H_W - sockH/2), 40], [new T.IcosahedronGeometry(BALL, 0), move(p.x, p.y, p.z), 1]); });
+    const pf = fuse(panel);
+    for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
+      for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
+        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
+    return { frame:done(fuse(frame)), act:done(fuse(act)), panel:done(pf), legs, BALL };
+  })();
   class Tile {
-    static frame = hexPrism(R, FR_TH);
-    static ribs = (function(){   // isogrid on the open back of the frame: triangles a third of the tile edge
-      const n = 3, s = R/n, z = -FR_TH/2 - 0.001, pts = [], inn = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= n;
-      const at = (i, j) => new V3((i + j/2)*s, j*s*Math.sqrt(3)/2, z);
-      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++){
-        if (!inn(i, j)) continue;
-        for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inn(i + di, j + dj)) pts.push(at(i, j), at(i + di, j + dj));
-      }
-      return new T.BufferGeometry().setFromPoints(pts);
-    })();
-    static plate = hexPrism(PL_R, PL_TH);
     static inset = new T.BufferGeometry().setFromPoints(
       Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*PL_R*0.9, Math.sin(i*PI/3)*PL_R*0.9, PL_TH/2 + 0.001)));
     static dots = (function(){   // stand-in for the element lattice
@@ -235,23 +322,22 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       }
       return new T.BufferGeometry().setFromPoints(pts);
     })();
-    // the six actuators, a hexapod: three pairs, each pair close together on the frame and splitting to two different
-    // pairs on the panel, so the legs zig-zag round the circle. b: foot on the frame front, p: head on the panel back
-    static legs = [0, 1, 2].flatMap(k => [1, -1].map(sg => {
-      const a = (120*k + 8*sg)*PI/180, b = (120*k + 52*sg)*PI/180;
-      return { b:new V3(Math.cos(a)*LEG_R, Math.sin(a)*LEG_R, FR_TH/2), p:new V3(Math.cos(b)*LEG_R, Math.sin(b)*LEG_R, -PL_TH/2) };
-    }));
-    static body = new T.CylinderGeometry(0.014, 0.014, LEG_BODY, 8, 1).rotateX(PI/2).translate(0, 0, LEG_BODY/2);
-    static rod = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
+    static rod = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1).rotateX(PI/2).translate(0, 0, 0.5);   // actuator shaft, unit length, stretched to fit
 
     // c: centre of its hex face on the shell, v0: that face's first corner. cap: the aft cap, the 20th hexagon, a
     // blank closure plate that never deploys and carries no elements.
-    constructor(c, v0, cap){
+    // all: every face of the shell, to find which way this one's neighbours lie
+    constructor(c, v0, cap, all){
       // stowed, as a face of the shell
       this.cap = cap;
       this.c = c;
       this.n = c.clone().normalize();                                   // outward normal
-      const u = v0.clone().sub(c).normalize(), w = new V3().crossVectors(this.n, u);
+      const u = v0.clone().sub(c).normalize();
+      // turn the tile's frame so its three neighbouring tiles lie at 30, 150 and 270 degrees, where the mount's arms point
+      const nb = all.map(f => f.c).filter(x => x !== c).sort((a, b) => a.distanceTo(c) - b.distanceTo(c))[0].clone().sub(c);
+      const off = ((Math.atan2(nb.dot(new V3().crossVectors(this.n, u)), nb.dot(u))*180/PI - 30) % 120 + 120) % 120;
+      if (off > 30 && off < 90) u.applyAxisAngle(this.n, PI/3);
+      const w = new V3().crossVectors(this.n, u);
       this.qs = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(u, w, this.n));   // attitude
       this.verts = Array.from({ length:6 }, (_, k) => c.clone().addScaledVector(u, A*Math.cos(k*PI/3)).addScaledVector(w, A*Math.sin(k*PI/3)));
       this.ps = c.clone().addScaledVector(this.n, FR_TH/2);            // position: frame back on the polyhedron, so tiles never intersect
@@ -268,27 +354,25 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
       // drawing
       const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
-      this.obj = part(fk, Tile.frame);
-      this.obj.add(new T.LineSegments(Tile.ribs, lineMat(fk)));
-      this.panel = part(pk, Tile.plate, { name:'Panel' });
+      const fused = (key, f, name) => { const g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = name; m.userData.key = key;
+        g.add(m, new T.LineSegments(f.lines, lineMat(key))); return g; };
+      this.obj = fused(fk, MOUNT.frame, 'Frame');
+      this.obj.add(fused(ak, MOUNT.act, 'Actuator'));
+      this.panel = fused(pk, MOUNT.panel, 'Panel');
       this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
       if (!cap) this.panel.add(new T.Points(Tile.dots, dotMat));
       this.panel.position.z = Z_PL; this.obj.add(this.panel);
-      this.legs = Tile.legs.map(() => {
-        const body = part(ak, Tile.body, { name:'Actuator' }), rod = part(ak, Tile.rod, { name:'Actuator rod' });
-        this.obj.add(body, rod); return { body, rod };
-      });
+      this.legs = MOUNT.legs.map(() => { const rod = part(ak, Tile.rod, { name:'Actuator rod' }); this.obj.add(rod); return { rod }; });
       this.setPanel(new T.Quaternion());
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
     // turn the panel about its centre and run each actuator out to reach it
     setPanel(q){
       this.panel.quaternion.copy(q);
-      Tile.legs.forEach((l, i) => {
-        const { body, rod } = this.legs[i], d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL; d.sub(l.b);
+      MOUNT.legs.forEach((l, i) => {   // the brackets stay put; each shaft runs from its cylinder to its ball under the whiffle
+        const rod = this.legs[i].rod, d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL; d.sub(l.b);
         const len = d.length(); d.divideScalar(len);
-        body.position.copy(l.b); rod.position.copy(l.b); rod.scale.z = len;
-        body.quaternion.setFromUnitVectors(zUp, d); rod.quaternion.copy(body.quaternion);
+        rod.position.copy(l.b); rod.scale.z = len - 0.6*MOUNT.BALL; rod.quaternion.setFromUnitVectors(zUp, d);
       });
     }
     static _d = new V3();
@@ -296,7 +380,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     set name(s){ this.obj.name = s; this.panel.name = s + ' panel'; }
   }
   const shell = hexFaces(), aftI = shell.reduce((m, f, i) => f.c.z < shell[m].c.z ? i : m, 0);
-  const tiles = shell.map((f, i) => new Tile(f.c, f.v0, i === aftI)), ico = shell.ico;
+  const tiles = shell.map((f, i) => new Tile(f.c, f.v0, i === aftI, shell)), ico = shell.ico;
   const top = tiles[0], aft = tiles[aftI];
   const movers = tiles.filter(f => f !== aft);
 
@@ -558,7 +642,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       });
     });
   }
-  const hingeGeo = zCyl(0.018, 0.018, 0.3, 6);
+  const hingeGeo = zCyl(0.007, 0.007, 0.24, 6);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
   order.forEach(f => { if (!f.par) return;
     const inv = f.qs.clone().invert();
     const h = part('hinge', hingeGeo, { angle:50 });
@@ -566,7 +650,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
     f.obj.add(h);
   });
-  axial('hinge', 0.04, Z_CORE_F, Z_FRONT);   // centre mast: core to the back of the front tile. Every signal comes home through it
+  axial('hinge', 0.13, Z_FRONT - 0.03, Z_FRONT);   // its flange, closing the opening in the front tile's delta frame
+  axial('hinge', 0.04, Z_CORE_F, Z_FRONT - 0.03);   // centre mast: core to the back of the front tile. Every signal comes home through it
 
   // ---- renderer, camera, controls ----
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
@@ -598,11 +683,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
   // ---- UI ----
   const PARTS = [
-    ['tiles', 'Array panels ×19', 'Transmit subarrays: flat element plates, each on its own frame. They carry no cables but a short service loop to that frame.'],
-    ['frame', 'Fold frames ×19', 'The structure. Stowed they are the shell; hinged at their edges, they unfold from the front frame and lock flat. Ribbed open at the back, with the fibre running in their edges.'],
-    ['act',   'Panel actuators ×114', 'Six per panel, a hexapod between frame and panel. With the frames locked flat they tip each panel toward the axis for a concave face or away from it for convex: a faceted dish.'],
+    ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
+    ['frame', 'Fold frames ×19', 'The structure, after the JWST segments. A hexagonal ring on the tile\'s outline, with power and fibre running inside it, and a delta frame within it whose three arms point at the three neighbouring tiles. Half a hinge on the ring opposite each arm, and three launch-lock posts the panel is pulled down onto for launch. Stowed, the rings are the shell.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta frame\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. With the frames locked flat they tip each panel toward the axis for a concave face or away from it for convex: a faceted dish.'],
     ['aft',   'Aft cap and inertial reference', 'The 20th frame and panel never deploy. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
-    ['hinge', 'Edge hinges and centre mast', '18 hinges on shared frame edges, each latching at a hard stop when flat; the front frame stays fixed on the mast.'],
+    ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a body. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo.'],
