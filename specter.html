@@ -110,7 +110,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
         <dt>Array tiles</dt><dd>19 + aft cap</dd>
         <dt>Tile depth</dt><dd>40 mm frame + 120 mm actuators + 20 mm panel</dd>
-        <dt>Panel tip, concave / convex</dt><dd>up to 10°, outermost panel</dd>
+        <dt>Panel tip, concave / convex</dt><dd>up to 6° and 105 mm forward, outermost panel</dd>
         <dt>Stowed shell</dt><dd id="d-sh">⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
         <dt>Elements per tile</dt><dd>≈ 3 800</dd>
@@ -142,7 +142,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PL_TH = 0.02;            // panel thickness
   const PL_R = R*0.95;           // panel circumradius: a little inside its frame, so tipped panels clear each other
   const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
-  const TILT = 10*Math.PI/180;   // how far the outermost panel tips for a concave or convex face
+  const TILT = 6*Math.PI/180;    // how far the outermost panel tips for a concave or convex face. Its piston grows with this: about 105 mm at 6°
   const Z_CORE = 0.10;           // centre of the core shell
   const CORE_S = 0.24;           // core shell: the outer shell at 24% scale
 
@@ -356,6 +356,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.G = new T.Matrix4();               // current hinge transform, stowed to now
       this.flat = null; this.flatQ = null;    // position and attitude with the net fully open
       this.tipAx = new V3(1,0,0); this.tipA = 0;   // panel tip for a concave face: axis in the frame, angle
+      this.sag = 0; this.pis = 0;                  // how far forward of the centre panel it sits on the dish; its piston now
 
       // drawing
       const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
@@ -371,11 +372,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.setPanel(new T.Quaternion());
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
-    // turn the panel about its centre and run each actuator out to reach it
-    setPanel(q){
-      this.panel.quaternion.copy(q);
+    // turn the panel about its centre, push it out by pis along the tile's normal, and run each actuator out to reach it
+    setPanel(q, pis){
+      pis = pis || 0; this.pis = pis;
+      this.panel.quaternion.copy(q); this.panel.position.z = Z_PL + pis;
       MOUNT.legs.forEach((l, i) => {   // the brackets stay put; each shaft runs from its cylinder to its ball under the whiffle
-        const rod = this.legs[i].rod, d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL; d.sub(l.b);
+        const rod = this.legs[i].rod, d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL + pis; d.sub(l.b);
         const len = d.length(); d.divideScalar(len);
         rod.position.copy(l.b); rod.scale.z = len - 0.6*MOUNT.BALL; rod.quaternion.setFromUnitVectors(zUp, d);
       });
@@ -570,7 +572,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x*x*(3 - 2*x);
   const tmp = new V3(), tmp2 = new V3(), nn = new V3(), pk = new V3();
   const hm = new T.Matrix4();
-  let kappa = 0;
+  let kappa = 0, sagMax = 0;
   const pq = new T.Quaternion();
   function hingeTransforms(u, k){
     order.forEach(f => {
@@ -588,7 +590,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     order.forEach(f => {
       f.obj.position.copy(f.ps).applyMatrix4(f.G);
       f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
-      f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA));
+      // and pushes it out to its place on the dish, so the panels' edges meet. A panel can be pushed out but not pulled
+      // in (its launch locks are in the way), so concave pushes the rim forward and convex pushes the middle forward.
+      f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA), act >= 0 ? act*f.sag : -act*(sagMax - f.sag));
     });
     setWebs();
     beam.visible = t > 0.999;
@@ -597,12 +601,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   hingeTransforms(1, 1);
   order.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); f.flatQ = new T.Quaternion().setFromRotationMatrix(f.G).multiply(f.qs); });
   // Each panel tips in proportion to its distance from the axis, so all their normals meet at one point on the axis: a
-  // faceted dish, with the outermost panel at TILT. The panels do not also piston to the dish's depth: the elements make
-  // up that path difference in phase.
+  // dish, with the outermost panel at TILT. Each panel is also pushed out to the dish's depth at its distance (sag), so
+  // the face is one surface, not a staircase of tipped facets.
   (function(){
     const r = f => Math.hypot(f.flat.x, f.flat.y), rMax = Math.max(...order.map(r));
     order.forEach(f => { if (r(f) < 1e-6) return;
       f.tipA = Math.atan(r(f)/rMax*Math.tan(TILT));
+      f.sag = r(f)*r(f)*Math.tan(TILT)/(2*rMax);   // the paraboloid whose slope at r is that tip
+      sagMax = Math.max(sagMax, f.sag);
       f.tipAx.set(-f.flat.y, f.flat.x, 0).normalize().applyQuaternion(f.flatQ.clone().invert());   // z x radial, in the frame
     });
   })();
@@ -694,7 +700,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         sxx += x*x; sxy += x*y; syy += y*y; sxz += x*z; syz += y*z;
       });
       const det = sxx*syy - sxy*sxy, cx = det > 1e-9 ? (sxz*syy - syz*sxy)/(2*det) : 0, cy = det > 1e-9 ? (syz*sxx - sxz*sxy)/(2*det) : 0;
-      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, Z_PL + PL_TH/2 - PUCK_H);   // centred on the anchors, face flush with the panels
+      P.copy(cen).addScaledVector(ex, cx).addScaledVector(ey, cy).addScaledVector(n, Z_PL + PL_TH/2 - PUCK_H + w.anchors.reduce((a, an) => a + an.f.pis, 0)/w.anchors.length);   // centred on the anchors, face flush with the panels, wherever the dish has put them
       // clock the pentagon about its axis so the face corners face their anchors as closely as the cell allows
       let sx = 0, sy = 0;
       w.anchors.forEach(an => {
