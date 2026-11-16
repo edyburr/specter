@@ -457,18 +457,24 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (const sg of [-1, 1]) items.push([zCyl(0.3, 0.3, 0.025, 6).rotateZ(PI/6), at(0, 0, ZC + sg*(L/2 + CAP + 0.0125))]);   // bus plates
     lump('cap', 'Capacitor bank', items); })();
 
-  // ---- processor column ----
-  // The computer: a card cage round the mast, between the core and the front tile, where every fibre comes home. Twelve
-  // boards stand edge-on to the mast, six long and six short, widening toward a backplane behind the front tile. They do
-  // the beamforming for the tiles and digitise and analyse what the horns hear. Standing radially, every board has both
-  // faces open to space and none faces another square on.
-  (() => { const z0 = Z_CORE_F + 0.06, z1 = Z_FRONT - 0.15, TH = 0.012, items = [];
-    const board = prof => new T.ExtrudeGeometry(new T.Shape(prof.map(([r, z]) => new T.Vector2(r, z))), { depth:TH, bevelEnabled:false }).rotateX(PI/2).translate(0, TH/2, 0);
-    const long = board([[0.04, z0], [0.1, z0], [0.22, z1 - 0.14], [0.22, z1], [0.04, z1]]);
-    const short = board([[0.04, z0 + 0.2], [0.07, z0 + 0.2], [0.15, z1 - 0.14], [0.15, z1], [0.04, z1]]);
-    for (let k = 0; k < 12; k++) items.push([k % 2 ? short : long, new T.Matrix4().makeRotationZ(k*PI/6)]);
-    items.push([zCyl(0.27, 0.27, 0.02, 6).rotateZ(PI/6), new T.Matrix4().makeTranslation(0, 0, z1 + 0.01)]);   // backplane
-    lump('dsp', 'Processor column', items); })();
+  // ---- processor cluster ----
+  // The computer is a cluster: many small nodes working side by side, because the work is parallel. Nineteen tiles to
+  // beamform and twelve horns to listen to, all at once. It is an open hexagonal cage round the mast, between the core
+  // and the front tile, where every fibre comes home: six corner rails, four decks, and on each of the three tiers six
+  // nodes, one to a side. The nodes stand off the mast and off each other, so the cage is mostly open space: room for
+  // the fibre to fan out, and for every node to shed its heat through the open sides.
+  (() => { const z0 = Z_CORE_F + 0.06, z1 = Z_FRONT - 0.15, TIERS = 3, DECK = 0.012, S3 = Math.sqrt(3), items = [];
+    const R_DECK = 0.28, R_RAIL = 0.262, N_IN = 0.1, N_OUT = 0.215, GAP = 0.022;   // deck and rail circumradius; a node's inner and outer face (inradius); half the gap between nodes
+    const hex = r => Array.from({ length:6 }, (_, i) => new T.Vector2(Math.cos((30 + 60*i)*PI/180)*r, Math.sin((30 + 60*i)*PI/180)*r));   // flats face 0, 60, ...
+    const tierH = (z1 - z0 - DECK)/TIERS, deck = slab(hex(R_DECK), [hex(0.075)], 0, DECK);
+    for (let i = 0; i <= TIERS; i++) items.push([deck, new T.Matrix4().makeTranslation(0, 0, z0 + i*tierH)]);
+    hex(R_RAIL).forEach(c => items.push([zCyl(0.011, 0.011, z1 - z0, 6), new T.Matrix4().makeTranslation(c.x, c.y, (z0 + z1)/2), 40]));
+    // a node: a wedge-shaped box filling one side of the cage, its outer corners cut back
+    const wi = N_IN/S3 - GAP, wo = N_OUT/S3 - GAP, k = 0.02, h = tierH - DECK - 0.03;
+    const node = slab([[N_IN, -wi], [N_OUT - k, -wo], [N_OUT, -wo + k], [N_OUT, wo - k], [N_OUT - k, wo], [N_IN, wi]].map(([x, y]) => new T.Vector2(x, y)), null, 0, h);
+    for (let i = 0; i < TIERS; i++) for (let j = 0; j < 6; j++)
+      items.push([node, new T.Matrix4().makeRotationZ(j*PI/3).setPosition(0, 0, z0 + i*tierH + DECK + 0.015)]);
+    lump('dsp', 'Processor cluster', items); })();
 
   // spokes: hollow 10 mm tubes, unit length on +z, stretched to fit; and the ball joints at their ends
   const SPOKE_R = 0.005, BALL_R = 0.012;
@@ -756,7 +762,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
     ['core',  'Core shell', 'The outer shell again at 30% scale: 20 hexagons, 12 pentagons. Houses the singularity.'],
-    ['dsp',   'Processor column', 'The computer, a card cage round the mast where every fibre comes home: twelve boards standing edge-on, for beamforming and for digitising and analysing what the horns hear.'],
+    ['dsp',   'Processor cluster', 'The computer, an open cage round the mast where every fibre comes home: eighteen nodes on three tiers, working in parallel on nineteen tiles and twelve horns at once. Beamforming, and digitising and analysing what the horns hear.'],
     ['cap',   'Capacitor bank', 'Six cells round the spine. The core is small and only trickles power; the cells store it over days and the array spends it in one hit. If they can no longer fill, the craft never opens.'],
     ['rad',   'Spine', 'Isolation strut from the core to the inertial reference, so the still point stays still.']
   ];

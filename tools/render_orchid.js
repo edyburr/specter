@@ -46,7 +46,7 @@ const NOTES = [
   ['spine', null, 'tail boom', 'isolates the mass from the core'],
   ['bank', null, 'capacitor bank', 'stores the charge for one hit'],
   ['core', null, 'AEPEC', 'power source'],
-  ['dsp', null, 'processor column', 'beamforming and signal analysis'],
+  ['dsp', null, 'processor cluster', 'eighteen nodes in parallel'],
   ['mast', null, 'keystone boom', 'joins core to front tile'],
   ['horns', 'harm', 'vibrometry horn', '10 GHz receive', 'left'],
   ['horns', 'vib', 'spectrometry horn', '20 GHz receive', 'left-below'],
