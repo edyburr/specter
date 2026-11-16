@@ -73,7 +73,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
     else if (k === 'aft') put(o.children.length > 2 ? 'cap' : 'ref');          // the cap tile carries an inset outline
     else if (k === 'rad') put('spine');
     else if (k === 'cap') put('bank');
-    else if (k === 'frame' || k === 'tiles' || k === 'act') put('array');
+    else if (k === 'frame' || k === 'tiles' || k === 'act' || k === 'delta' || k === 'lift') put('array');
     else if (k === 'core') put('core');
     else if (k === 'dsp') put('dsp');
     else if (k === 'shield') put('shield');

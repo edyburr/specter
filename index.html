@@ -117,7 +117,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         <dt>Active aperture</dt><dd id="d-ap">thinned</dd>
         <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
         <dt>Array tiles</dt><dd>19 + aft cap</dd>
-        <dt>Tile depth</dt><dd>40 mm frame + 120 mm actuators + 20 mm panel</dd>
+        <dt>Tile depth</dt><dd>40 mm frame and delta + 120 mm actuators + 20 mm panel</dd>
         <dt>Dish, concave / convex</dt><dd id="d-dish"></dd>
         <dt>Stowed shell</dt><dd id="d-sh">⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
@@ -150,7 +150,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PL_TH = 0.02;            // panel thickness
   const PL_R = R*0.95;           // panel circumradius: a little inside its frame, so tipped panels clear each other
   const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
-  const TILT = 10*Math.PI/180;   // how far the outermost tile leans for a concave or convex face
+  const TILT = 6*Math.PI/180;    // how far the outermost panel tips for a concave or convex face. The lift it needs grows with this: about 105 mm at 6°
   const Z_CORE = 0.10;           // centre of the core shell
   const CORE_S = 0.24;           // core shell: the outer shell at 24% scale
 
@@ -229,11 +229,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     g.add(m, new T.LineSegments(f.lines, lineMat(key))); root.add(g); return g; };
 
   // ---- the tile mount, after the JWST segments (worked out on the panel bench, panel.html) ----
-  // Fixed, at the frame's level: a hexagonal ring on the tile's outline, the raceway for power and fibre, whose corners take
-  // the port-web spokes; inside it the delta frame, a hexagon with three arms toward the three neighbouring tiles; half a
-  // hinge on the ring opposite each arm; three launch-lock posts; six actuator brackets hanging under the arms.
-  // Moving: the panel (face sheet on an isogrid), three whiffles under it, and the six actuator shafts that push them.
-  // Everything of one kind is fused into one shape, so a tile is three solids and six shafts.
+  // Three layers. The fold frame: a hexagonal ring on the tile's outline, the raceway for power and fibre, with half a
+  // hinge on each side that faces a tile and spoke ears beside its corners. It hinges, snaps flat, and never moves again.
+  // The delta backplane: a hexagon with three arms, nested in the ring and pushed straight out of it by three lift
+  // actuators, one under each arm's end; it carries three launch-lock posts and six actuator brackets.
+  // The panel: face sheet on an isogrid, three whiffles under it, tipped by the six actuator shafts.
+  // So: the lifts set how far forward a panel stands, the six set which way it faces.
+  // Everything of one kind is fused into one shape.
   const MOUNT = (() => {
     const S3 = Math.sqrt(3), deg = PI/180, V2 = T.Vector2, M4 = () => new T.Matrix4();
     const dir2 = a => new V2(Math.cos(a), Math.sin(a)), dir3 = (a, r, z) => new V3(Math.cos(a)*r, Math.sin(a)*r, z || 0);
@@ -242,7 +244,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const upright = (prof, y0, y1) => new T.ExtrudeGeometry(new T.Shape(prof.map(([x, z]) => new V2(x, z))), { depth:y1 - y0, bevelEnabled:false }).rotateX(PI/2).translate(0, y1, 0);
     const move = (x, y, z) => M4().makeTranslation(x, y, z);
     const ZB = -FR_TH/2, ZT = FR_TH/2, PB = -PL_TH/2;       // frame underside and top; panel back, in the panel's own frame
-    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1;   // hinge axis; ring outer and inner inradius; arm tongue half-width at the ring
+    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.368, TAB_END = 0.412, LIFT_R = 0.39, LIFT_L = 0.085;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies
     const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
     const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
     const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
@@ -253,11 +255,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
     // ---- frame: ring, delta frame, hinge halves, launch locks ----
     const frame = [];
-    const ringHole = [];
-    hexPts(RING_I).forEach((c, k) => { ringHole.push(c);
-      if (k % 2 === 0){ const u = dir2((30 + 60*k)*deg), t = dir2((120 + 60*k)*deg), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
-        ringHole.push(at(RING_I, -TG_W), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(RING_I, TG_W)); } });
-    frame.push([slab(hexPts(RING_O), [ringHole], ZB, FR_TH)]);
+    // The fold frame is the ring: it hinges, and snaps flat. From each hinged side a tongue, half the ring's depth, reaches
+    // in under the end of a delta arm, and a lift actuator hangs under its tip. The delta backplane is a separate piece:
+    // it nests in the ring, a tab on each arm's end lapping over a tongue, and the three lifts push it straight out.
+    const delta = [], lift = [], lifts = [];
+    frame.push([slab(hexPts(RING_O), [hexPts(RING_I)], ZB, FR_TH)]);
+    BASE.forEach(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
+      frame.push([slab([at(RING_I, -TG_W), at(TG_END, -0.06), at(TG_END, 0.06), at(RING_I, TG_W)], null, ZB, FR_TH/2)]);
+      delta.push([slab([at(DL_END, -DL_TIP), at(TAB_END, -0.05), at(TAB_END, 0.05), at(DL_END, DL_TIP)], null, 0, FR_TH/2)]);
+      const q = at(LIFT_R, 0); lifts.push(new V3(q.x, q.y, 0));
+      lift.push([zCyl(0.017, 0.017, LIFT_L, 6), move(q.x, q.y, ZB - LIFT_L/2), 40], [zCyl(0.024, 0.024, 0.012, 6), move(q.x, q.y, ZB - 0.006), 40]); });
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
     // in a hex eye that stands proud of the ring top and bottom. A port-web spoke's ball joint seats on each end of the eye,
     // and the horn's fibre enters the ring through it.
@@ -275,7 +282,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const WIN = (() => { const hw = DL_HEX/S3 - WIN_M, ro = DL_END - WIN_M, k = hw - (DL_END + DL_TIP - WIN_M*Math.SQRT2 - ro); return { hw, ro, ri:WIN_RI, k }; })();
     const armWindows = BASE.map(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s), { hw, ro, ri, k } = WIN;
       return [at(ri + WIN_KI, -hw), at(ro - k, -hw), at(ro, -hw + k), at(ro, hw - k), at(ro - k, hw), at(ri + WIN_KI, hw), at(ri, hw - WIN_KI), at(ri, -hw + WIN_KI)]; });
-    frame.push([slab(deltaOut, [hexPts(DL_HOLE), ...armWindows], ZB, FR_TH)]);
+    delta.push([slab(deltaOut, [hexPts(DL_HOLE), ...armWindows], ZB, FR_TH)]);
     // half a hinge opposite each arm: lug, barrel on the hinge axis (the shell's edge), drive beyond it. The neighbour's half
     // lands on the other side of the centre line, so the two interleave on one pin.
     const lug = upright([[RING_O, ZB], [AP, ZB - HG_R], [AP, ZB + HG_R], [RING_O, ZT]], HG_T0, HG_T1);
@@ -290,7 +297,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       return best; };
     const zPB = Z_PL + PB, postH = zPB - LOCK - 0.004 - ZT;   // panel back in the frame's coordinates
     [90, 210, 330].forEach(x => { const q = snap(dir3(x*deg, LOCK_R)), m = move(q.x, q.y, 0);
-      frame.push([zCyl(0.007, 0.015, postH, 6).translate(0, 0, ZT + postH/2), m, 40], [zCyl(0.013, 0.009, 0.004, 6).translate(0, 0, zPB - LOCK - 0.002), m, 40]); });
+      delta.push([zCyl(0.007, 0.015, postH, 6).translate(0, 0, ZT + postH/2), m, 40], [zCyl(0.013, 0.009, 0.004, 6).translate(0, 0, zPB - LOCK - 0.002), m, 40]); });
 
     // ---- actuators: a ∪ bracket under the arm with a cylinder upright in it (fixed), and a shaft up through the arm's window ----
     const act = [], legs = [], rAct = (WIN.ri + WIN.ro)/2, xLeg = (WIN.ro - WIN.ri)/2;
@@ -322,7 +329,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
-    return { frame:done(fuse(frame)), act:done(fuse(act)), panel:done(pf), legs, BALL, ears, EAR_Z };
+    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, EAR_Z };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
@@ -335,6 +342,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       }
       return new T.BufferGeometry().setFromPoints(pts);
     })();
+    static liftRod = new T.CylinderGeometry(0.008, 0.008, 1, 6, 1).rotateX(PI/2).translate(0, 0, 0.5);       // lift shaft, inner stage
+    static liftSleeve = new T.CylinderGeometry(0.0125, 0.0125, 1, 6, 1).rotateX(PI/2).translate(0, 0, 0.5);   // and outer stage, half as far
     static rod = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1).rotateX(PI/2).translate(0, 0, 0.5);   // actuator shaft, unit length, stretched to fit
 
     // c: centre of its hex face on the shell, v0: that face's first corner. cap: the aft tile, the 20th hexagon. It never
@@ -363,28 +372,38 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.hA = 0;                            // fold angle the hinge takes out
       this.G = new T.Matrix4();               // current hinge transform, stowed to now
       this.flat = null; this.flatQ = null;    // position and attitude with the net fully open
-      this.pis = 0;                           // how far its actuators have pushed the panel out
+      this.tipAx = new V3(1,0,0); this.tipA = 0;   // panel tip for a concave face: axis in the frame, angle
+      this.sag = 0; this.pis = 0;                  // how far forward of the centre panel it stands on the dish; how far its lifts are out now
 
       // drawing
       const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
       const fused = (key, f, name) => { const g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = name; m.userData.key = key;
         g.add(m, new T.LineSegments(f.lines, lineMat(key))); return g; };
+      const dk = cap ? 'aft' : 'delta', lk = cap ? 'aft' : 'lift';
       this.obj = fused(fk, MOUNT.frame, 'Frame');
-      this.obj.add(fused(ak, MOUNT.act, 'Actuator'));
+      this.obj.add(fused(lk, MOUNT.lift, 'Lift actuator'));
+      // the stage: everything the lifts carry
+      this.stage = fused(dk, MOUNT.delta, 'Delta backplane'); this.obj.add(this.stage);
+      this.stage.add(fused(ak, MOUNT.act, 'Actuator'));
       this.panel = fused(pk, MOUNT.panel, 'Panel');
       this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
       this.panel.add(new T.Points(Tile.dots, dotMat));
-      this.panel.position.z = Z_PL; this.obj.add(this.panel);
-      this.legs = MOUNT.legs.map(() => { const rod = part(ak, Tile.rod, { name:'Actuator rod' }); this.obj.add(rod); return { rod }; });
+      this.panel.position.z = Z_PL; this.stage.add(this.panel);
+      this.legs = MOUNT.legs.map(() => { const rod = part(ak, Tile.rod, { name:'Actuator rod' }); this.stage.add(rod); return { rod }; });
+      // each lift's shaft in two stages, from the tongue up to the tab on the delta arm
+      this.lifts = MOUNT.lifts.map(p => [Tile.liftRod, Tile.liftSleeve].map(geo => { const r = part(lk, geo, { name:'Lift shaft' }); r.position.copy(p); this.obj.add(r); return r; }));
       this.setPanel(new T.Quaternion());
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
     // turn the panel about its centre, push it out by pis along the tile's normal, and run each actuator out to reach it
-    setPanel(q, pis){
-      pis = pis || 0; this.pis = pis;
-      this.panel.quaternion.copy(q); this.panel.position.z = Z_PL + pis;
-      MOUNT.legs.forEach((l, i) => {   // the brackets stay put; each shaft runs from its cylinder to its ball under the whiffle
-        const rod = this.legs[i].rod, d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL + pis; d.sub(l.b);
+    // push the stage out of the ring by lift, along the tile's normal, and turn the panel about its centre
+    setPanel(q, lift){
+      lift = lift || 0; this.pis = lift;
+      this.stage.position.z = lift;
+      this.lifts.forEach(([rod, sleeve]) => { rod.scale.z = Math.max(lift, 1e-3); sleeve.scale.z = Math.max(lift/2, 1e-3); });
+      this.panel.quaternion.copy(q);
+      MOUNT.legs.forEach((l, i) => {   // the brackets stay put on the delta; each shaft runs from its cylinder to its ball under the whiffle
+        const rod = this.legs[i].rod, d = Tile._d.copy(l.p).applyQuaternion(q); d.z += Z_PL; d.sub(l.b);
         const len = d.length(); d.divideScalar(len);
         rod.position.copy(l.b); rod.scale.z = len - 0.6*MOUNT.BALL; rod.quaternion.setFromUnitVectors(zUp, d);
       });
@@ -579,26 +598,28 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x*x*(3 - 2*x);
   const tmp = new V3(), tmp2 = new V3(), nn = new V3(), pk = new V3();
   const hm = new T.Matrix4();
-  let kappa = 0;
-  // more: extra travel on every hinge, past flat (radians)
-  function hingeTransforms(u, k, more){
+  let kappa = 0, sagMax = 0;
+  const pq = new T.Quaternion();
+  function hingeTransforms(u, k){
     order.forEach(f => {
       if (!f.par) { f.G.identity(); return; }
-      hm.makeRotationAxis(f.hD, f.hA*k*ss((u - (f.depth - 1)*0.18)/0.46) + (more || 0));
+      hm.makeRotationAxis(f.hD, f.hA*k*ss((u - (f.depth - 1)*0.18)/0.46));
       tmp.copy(f.hP).applyMatrix4(hm);
       hm.setPosition(f.hP.x - tmp.x, f.hP.y - tmp.y, f.hP.z - tmp.z);
       f.G.multiplyMatrices(f.par.G, hm);
     });
   }
   function pose(t){
-    // The dish is made by the hinges, not the panels. Run every hinge the same few degrees past flat and all nineteen
-    // tiles lie against one sphere, a bowl (concave); stop them the same few degrees short and it is a dome (convex).
-    // Neighbours stay joined along their hinge the whole way, so the face is one surface with no steps. The panel
-    // actuators only trim.
-    hingeTransforms(t, 1, kappa*DISH_HINGE*ss((t - 0.9)/0.1));
+    hingeTransforms(t, 1);
+    // The frames snap flat and stay flat. Then each tile makes its piece of the dish: its three lifts push the delta
+    // backplane, and the panel on it, straight out to the dish's depth at that tile, and its six actuators tip the panel
+    // to the dish's slope there. Depth and slope come from one curve, so neighbouring panels' edges meet. Lifts only
+    // push: concave pushes the rim forward, convex the middle.
+    const act = kappa*ss((t - 0.9)/0.1);
     order.forEach(f => {
       f.obj.position.copy(f.ps).applyMatrix4(f.G);
       f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
+      f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA), act >= 0 ? act*f.sag : -act*(sagMax - f.sag));
     });
     setWebs();
     beam.visible = t > 0.999;
@@ -606,11 +627,18 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the fully open net, which the port webs plan their anchors against
   hingeTransforms(1, 1);
   order.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); f.flatQ = new T.Quaternion().setFromRotationMatrix(f.G).multiply(f.qs); });
-  // How far each hinge over- or under-travels for the dish. Two hexagons hinged on a shared edge and folded by d both
-  // touch a sphere of radius (half a tile)/tan(d/2); so does the next tile, and the next. The sphere that puts the
-  // outermost tile at TILT has radius rMax/sin(TILT).
-  const DISH_HINGE = (() => { const rMax = Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y)));
-    return 2*Math.atan(A*Math.sqrt(3)/2/(rMax/Math.sin(TILT))); })();
+  // The dish: a paraboloid, with the outermost panel tipped by TILT. Each tile gets the slope (tipA, about tipAx) and the
+  // depth (sag) of the curve at its own distance from the axis.
+  (function(){
+    const r = f => Math.hypot(f.flat.x, f.flat.y), rMax = Math.max(...order.map(r));
+    order.forEach(f => { if (r(f) < 1e-6) return;
+      f.tipA = Math.atan(r(f)/rMax*Math.tan(TILT));
+      f.sag = r(f)*r(f)*Math.tan(TILT)/(2*rMax);
+      sagMax = Math.max(sagMax, f.sag);
+      f.tipAx.set(-f.flat.y, f.flat.x, 0).normalize().applyQuaternion(f.flatQ.clone().invert());   // z x radial, in the frame
+    });
+    document.getElementById('d-dish').textContent = Math.round(TILT*180/PI) + '° tip, ' + Math.round(sagMax*1000) + ' mm lift at the rim';
+  })();
 
   // ---- port webs ----
   // Stowed, each of the 12 pentagonal gaps in the shell holds one horn at its centre, face flush with the shell, slung
@@ -762,10 +790,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // ---- UI ----
   const PARTS = [
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
-    ['frame', 'Fold frames ×19', 'The structure, after the JWST segments. A hexagonal ring on the tile\'s outline, with power and fibre running inside it, and a delta frame within it whose three arms point at the three neighbouring tiles. Half a hinge on the ring opposite each arm, and three launch-lock posts the panel is pulled down onto for launch. Stowed, the rings are the shell.'],
-    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta frame\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They seat the panel on its locks for launch, lift it off in orbit, and trim each panel\'s aim; the hinges make the dish.'],
+    ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and spoke ears beside its corners. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
+    ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel, its six actuators and three launch-lock posts, and rides straight out of the ring on the lifts.'],
+    ['lift',  'Lift actuators ×57', 'Three per tile, one under the end of each delta arm, on a tongue of the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They only aim: they tip the panel to the dish\'s slope, seat it on its locks for launch and lift it off in orbit.'],
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
-    ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames. Run every hinge a few degrees past flat and the array is a bowl; stop them short and it is a dome, every tile against one sphere. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
+    ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
@@ -805,7 +835,6 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the open net spans the tile centre furthest out, plus half a tile either side
   document.getElementById('d-ap').textContent = (2*(Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5)).toFixed(1) + ' m, thinned';
   // stowed: the furthest panel corner from the shell centre
-  document.getElementById('d-dish').textContent = (DISH_HINGE*180/PI).toFixed(1) + '° per hinge, ' + Math.round(TILT*180/PI) + '° at the rim';
   document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, PL_R)).toFixed(1) + ' m';
   resize(); resetView(); paint();
   let last = performance.now();
