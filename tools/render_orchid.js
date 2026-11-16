@@ -34,7 +34,7 @@ const VIEWS = { front:[[0,0,1],[0,1,0]], side:[[-Math.cos(18*d2r)*Math.cos(8*d2r
 
 // Exploded view. Pieces in order along the axis, each with the gap (in model units) left before it. The array stays
 // whole: tiles, horns and wires as they are when open.
-const ORDER = [['cap',0],['ref',1.3],['spine',1],['leaves',1],['core',1],['dsp',1],['mast',1],['array',1.9]];
+const ORDER = [['cap',0],['ref',1.3],['spine',1],['bank',1],['core',1],['dsp',1],['mast',1],['array',1.9]];
 // One note per leader: piece, part key to point at within it (or null), name, then what it is and what it does
 // (written as printed: lowercase, but GHz and proper names keep their capitals), and how the leader runs.
 // Plain: straight down to the row of notes under the axis. 'left': out sideways from the part, then down to the row;
@@ -44,9 +44,9 @@ const NOTES = [
   ['cap', null, 'aft tile', 'the link home'],
   ['ref', null, 'inertial mass', 'vibration reference'],
   ['spine', null, 'tail boom', 'isolates the mass from the core'],
-  ['leaves', null, 'radiator leaves', 'shed core and processor heat', 'bracket-up'],
+  ['bank', null, 'capacitor bank', 'stores the charge for one hit'],
   ['core', null, 'AEPEC', 'power source'],
-  ['dsp', null, 'processor stack', 'beamforming and signal analysis'],
+  ['dsp', null, 'processor column', 'beamforming and signal analysis'],
   ['mast', null, 'keystone boom', 'joins core to front tile'],
   ['horns', 'harm', 'vibrometry horn', '10 GHz receive', 'left'],
   ['horns', 'vib', 'spectrometry horn', '20 GHz receive', 'left-below'],
@@ -70,7 +70,8 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
     const k = keyOf(o), put = n => (P[n] = P[n] || []).push(o);
     if (k === 'web' || k === 'cable') put('array');   // wires and cables travel with the array
     else if (k === 'aft') put(o.children.length > 2 ? 'cap' : 'ref');          // the cap tile carries an inset outline
-    else if (k === 'rad') put(/^Leaf/.test(o.children[0].name) ? 'leaves' : 'spine');
+    else if (k === 'rad') put('spine');
+    else if (k === 'cap') put('bank');
     else if (k === 'frame' || k === 'tiles' || k === 'act') put('array');
     else if (k === 'core') put('core');
     else if (k === 'dsp') put('dsp');
