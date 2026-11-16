@@ -96,7 +96,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         <li><button type="button" data-keys="whiffle">Whiffles <small>×3</small><span>Trapezoidal pads, each bonded to the panel's rib nodes at three feet, so nothing pushes on one spot. Moved by the actuators.</span></button></li>
         <li><button type="button" data-keys="act">Actuators <small>×6</small><span>Two per whiffle, side by side under each arm. Each is a squarish ∪ bracket hanging under the arm, its legs standing on the solid frame either side of the window, with a cylinder upright in its middle, all fixed; and a shaft that runs from the cylinder up through the window to the whiffle, the only part that moves. Together they tip, turn and piston the panel.</span></button></li>
         <li><button type="button" data-keys="delta">Delta frame <small>×1</small><span>Fixed, the tile's base and its share of the backplane: tiles join delta frame to delta frame, never panel to panel. A hexagon whose three edges facing the hinged edges run out as flat-ended arms, each with a window through it that follows its outline. Carries the actuators.</span></button></li>
-        <li><button type="button" data-keys="ring node">Ring and corner nodes <small>×1, ×6</small><span>A hexagonal frame round the delta frame, joined to its arms, as wide as the tile's wedge allows. Power and fibre run inside it, round to each hinge and through the hollow pin to the next tile. Each corner has a node, a socket for the horn spokes, so a horn's feed enters the frame there and never runs loose.</span></button></li>
+        <li><button type="button" data-keys="ring">Ring <small>×1</small><span>A hexagonal frame round the delta frame, joined to its arms, as wide as the tile's wedge allows. Power and fibre run inside it, round to each hinge and through the hollow pin to the next tile.</span></button></li>
+        <li><button type="button" data-keys="node">Spoke ears <small>×6</small><span>Beside each corner, a tapered tab off the ring's edge that faces a horn, ending in a hex eye. A pair of horn spokes seat their ball joints on the eye, front and back, and the horn's fibre enters the ring through it, so a horn's feed never runs loose.</span></button></li>
         <li><button type="button" data-keys="lock">Launch locks <small>×3</small><span>Posts on the delta frame, between the arms, under rib nodes. For launch the actuators pull the panel 25 mm down onto them, so the shaking goes through the posts and not the actuators; in orbit they lift it back off.</span></button></li>
         <li><button type="button" data-keys="hinge">Hinge fittings <small>×3</small><span>Half a hinge on the ring, opposite each arm: a lug out to a barrel on the hinge axis, and a drive beyond it. The neighbour's half sits beside it on the same pin, so every tile is the same part and each hinge has two drives. Where two tiles touch only in the ball, the same two halves take a launch pin that is pulled to let the net open.</span></button></li>
       </ul>
@@ -181,9 +182,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const LOCK_DIRS = [90, 210, 330].map(x => x*deg), LOCK_R = 0.14;
   // Ring: a hexagonal frame round the delta frame, at its level, joined to the arms' ends. It is as wide as the tile's wedge
   // allows at that depth (less RING_M), so stowed the rings close up edge to edge. It is the raceway: power and fibre run
-  // inside it, round to each hinge and through the hollow pin to the next tile, and each corner carries a node, an
-  // icosahedral socket where the horn spokes plug in. The horns' feed joins the frame there.
-  const RING_W = 0.03, RING_M = 0.008, TG_W = 0.1, NODE_R = 0.013;   // ring's width; its margin to the wedge; half-width of an arm's tongue where it meets the ring; corner node
+  // inside it, round to each hinge and through the hollow pin to the next tile. Beside each corner it has a spoke ear, where a
+  // pair of horn spokes plug in and the horn's fibre joins the frame.
+  const RING_W = 0.03, RING_M = 0.008, TG_W = 0.1, NODE_R = 0.012, EAR_H = 0.04, EAR_R = 0.016, EAR_P = 0.006;   // ring's width; its margin to the wedge; half-width of an arm's tongue where it meets the ring; spoke ball joint; a spoke ear's reach, its eye's radius, how far the eye stands proud
   const SOCK_H = 0.007;                              // hex socket under the whiffle that an actuator's ball sits in
 
   const hexPrism = (inr, h) => { const r = inr*2/S3;   // inradius in; vertex 0 on +x, axis z
@@ -274,9 +275,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       if (HINGED.includes(k)){ const u = dir2((30 + 60*k)*deg), t = dir2((120 + 60*k)*deg), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
         ringHole.push(at(ringI, -TG_W), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(ringI, TG_W)); } });
     tile.add(part('ring', slab(hexPts(ringO), [ringHole], zDb, H_D)));
-    // corner nodes: icosahedra let into the ring's corners, where the horn spokes plug in
-    const nodeGeo = new T.IcosahedronGeometry(NODE_R, 0);
-    hexPts(ringO - RING_W/2).forEach(c => { const n = part('node', nodeGeo, 1); n.position.set(c.x, c.y, zDt); tile.add(n); });
+    // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
+    // in a hex eye that stands proud of the ring top and bottom, with a spoke's ball joint seated on each end
+    const eyeGeo = new T.CylinderGeometry(EAR_R, EAR_R, H_D + 2*EAR_P, 6).rotateX(PI/2), nodeGeo = new T.IcosahedronGeometry(NODE_R, 0);
+    hexPts(ringO).forEach((C, k) => { const pe = k % 2 ? k : k - 1, e = dir2((30 + 60*pe)*deg), along = dir2((30 + 60*pe)*deg + (k % 2 ? PI/2 : -PI/2));
+      const at = (x, h) => C.clone().addScaledVector(along, x).addScaledVector(e, h), eye = at(0.0575, EAR_H - 0.008);
+      const g = part('node', eyeGeo, 40); g.position.set(eye.x, eye.y, (zDb + zDt)/2);
+      tile.add(part('node', slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, zDb, H_D)), g);
+      [zDb - EAR_P, zDt + EAR_P].forEach(z => { const n = part('node', nodeGeo, 1); n.position.set(eye.x, eye.y, z); tile.add(n); }); });
     const lugGeo = new T.ExtrudeGeometry(new T.Shape([[ringO, zDb], [a, zH - HG_R], [a, zH + HG_R], [ringO, zDt]].map(([x, z]) => new V2(x, z))),
       { depth:HG_T1 - HG_T0, bevelEnabled:false }).translate(0, 0, HG_T0).applyMatrix4(new T.Matrix4().makeBasis(new V3(1, 0, 0), new V3(0, 0, 1), new V3(0, 1, 0)));
     const barrelGeo = new T.CylinderGeometry(HG_R, HG_R, HG_T1 - HG_T0, 6).translate(a, (HG_T0 + HG_T1)/2, zH);
@@ -409,7 +415,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     const off = Math.min(...lockPts.map(p => moved(p).z)) + LOCK;
     mark('k-lock', Math.abs(off) < 2e-4 ? 'seated' : off > 0 ? (off*1000).toFixed(1) + ' mm off' : (-off*1000).toFixed(1) + ' mm into them', off > -2e-4);
     // the panel's hinged edges, tipped, against the top of the hinge drives below them
-    clear('k-hinge', Math.min(Math.min(...edgePts.map(p => moved(p).z)) - Math.max(zH + MOT_R, zDt), Math.min(...cornerPts.map(p => moved(p).z)) - zDt - NODE_R), 'into them');
+    clear('k-hinge', Math.min(Math.min(...edgePts.map(p => moved(p).z)) - Math.max(zH + MOT_R, zDt), Math.min(...cornerPts.map(p => moved(p).z)) - zDt - EAR_P - NODE_R), 'into them');
     // the whiffles' undersides, tipped, against the top of the (fixed) delta frame
     clear('k-whf', Math.min(...whPts.map(p => moved(p).z)) - zDt, 'into it');
     const spare = Math.min(rfMax - dlReach, ringSpare);

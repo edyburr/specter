@@ -254,6 +254,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       if (k % 2 === 0){ const u = dir2((30 + 60*k)*deg), t = dir2((120 + 60*k)*deg), at = (r, w) => u.clone().multiplyScalar(r).addScaledVector(t, w);
         ringHole.push(at(RING_I, -TG_W), at(DL_END, -DL_TIP), at(DL_END, DL_TIP), at(RING_I, TG_W)); } });
     frame.push([slab(hexPts(RING_O), [ringHole], ZB, FR_TH)]);
+    // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
+    // in a hex eye that stands proud of the ring top and bottom. A port-web spoke's ball joint seats on each end of the eye,
+    // and the horn's fibre enters the ring through it.
+    const EAR_H = 0.04, EAR_R = 0.016, EAR_Z = FR_TH/2 + 0.006, ears = [];
+    for (let k = 0; k < 6; k++){ const C = dir2(k*PI/3).multiplyScalar(RING_O*2/S3), pe = k % 2 ? k : k - 1;   // pe: the port edge at this corner
+      const e = dir2((30 + 60*pe)*deg), along = dir2((30 + 60*pe)*deg + (k % 2 ? PI/2 : -PI/2));        // out of the edge; along it, away from the corner
+      const at = (x, h) => C.clone().addScaledVector(along, x).addScaledVector(e, h), eye = at(0.0575, EAR_H - 0.008);
+      frame.push([slab([at(0.025, 0), at(0.095, 0), at(0.072, EAR_H), at(0.043, EAR_H)], null, ZB, FR_TH)], [zCyl(EAR_R, EAR_R, 2*EAR_Z, 6), move(eye.x, eye.y, 0), 40]);
+      ears.push(new V3(eye.x, eye.y, 0)); }
     const deltaOut = [];
     for (let k = 0; k < 6; k++){ const a = (30 + 60*k)*deg, u = dir2(a), t = dir2(a + PI/2), w = DL_HEX/S3;
       const at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
@@ -309,7 +318,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
-    return { frame:done(fuse(frame)), act:done(fuse(act)), panel:done(pf), legs, BALL };
+    return { frame:done(fuse(frame)), act:done(fuse(act)), panel:done(pf), legs, BALL, ears, EAR_Z };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
@@ -559,8 +568,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     grp.forEach(f => {
       w.tiles.push(f);
       near(f).forEach(k => {
-        const loc = new V3(Math.cos(k*PI/3)*R, Math.sin(k*PI/3)*R, 0);   // corner, mid-thickness, in the tile's frame
-        cand.push({ f, k, loc, fl:loc.clone().applyQuaternion(f.flatQ).add(f.flat) });
+        const cor = new V3(Math.cos(k*PI/3)*R, Math.sin(k*PI/3)*R, 0);   // corner, mid-thickness, in the tile's frame
+        // the anchor is the spoke ear beside that corner; fl, the corner itself once flat, tells which corners two tiles share
+        cand.push({ f, k, loc:MOUNT.ears[k], fl:cor.applyQuaternion(f.flatQ).add(f.flat) });
       });
     });
     // one anchor per corner of the open cell. A corner two tiles still share once flat goes to the tile nearer the
@@ -579,7 +589,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
     // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a ball joint: a ball with a bore through
     // it, in a socket, so the fibre passes straight through and the joint seals while it swivels. A pair of spokes runs
-    // from the front and back edge of a tile corner to the front and back edge of a face corner, with a joint at each of
+    // from the front and back of a tile's spoke ear to the front and back edge of a face corner, with a joint at each of
     // the four ends: the horn's face has a rim of its own, just like the tile. The fibre runs on through
     // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
     // so each horn has several paths home: lose one and the signal takes another.
@@ -587,7 +597,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     w.anchors.forEach(an => {
       for (let s = 0; s < 2; s++){
         const sp = part('web', spokeGeo, { name:'Spoke' }); w.wires.push(sp); root.add(sp);
-        ball(an.f.obj, an.loc.clone().setZ(s ? FR_TH/2 : -FR_TH/2));
+        ball(an.f.obj, an.loc.clone().setZ(s ? MOUNT.EAR_Z : -MOUNT.EAR_Z));
       }
     });
     new Set(w.anchors.map(an => an.vi)).forEach(vi => { for (const z of [0, PUCK_H]) ball(w.horn, pentCorner(vi, w.puck).setZ(w.horn.reach + z)); });
@@ -636,7 +646,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         const ang = an.vi*2*PI/5;
         for (let s = 0; s < 2; s++){
           pk.set(Math.cos(ang)*w.puck, Math.sin(ang)*w.puck, s ? PUCK_H : 0).applyQuaternion(w.obj.quaternion).add(P);
-          tmp.set(0, 0, s ? FR_TH/2 : -FR_TH/2).applyQuaternion(an.f.obj.quaternion).add(an.p);
+          tmp.set(0, 0, s ? MOUNT.EAR_Z : -MOUNT.EAR_Z).applyQuaternion(an.f.obj.quaternion).add(an.p);
           setWire(w.wires[2*i + s], tmp, pk);
         }
       });
