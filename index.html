@@ -117,8 +117,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         <dt>Active aperture</dt><dd id="d-ap">thinned</dd>
         <dt>Tile, flat to flat</dt><dd>1.00 m</dd>
         <dt>Array tiles</dt><dd>19 + aft cap</dd>
-        <dt>Tile depth</dt><dd>40 mm frame + 120 mm neck + 20 mm panel; actuators hang 190 mm under the frame</dd>
-        <dt>Panel tip, concave / convex</dt><dd>up to 6° and 105 mm forward, outermost panel</dd>
+        <dt>Tile depth</dt><dd>40 mm frame + 120 mm actuators + 20 mm panel</dd>
+        <dt>Dish, concave / convex</dt><dd id="d-dish"></dd>
         <dt>Stowed shell</dt><dd id="d-sh">⌀ 2.9 m</dd>
         <dt>Element pitch (λ/2)</dt><dd>15 mm</dd>
         <dt>Elements per tile</dt><dd>≈ 3 800</dd>
@@ -150,7 +150,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PL_TH = 0.02;            // panel thickness
   const PL_R = R*0.95;           // panel circumradius: a little inside its frame, so tipped panels clear each other
   const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
-  const TILT = 6*Math.PI/180;    // how far the outermost panel tips for a concave or convex face. Its piston grows with this: about 105 mm at 6°
+  const TILT = 10*Math.PI/180;   // how far the outermost tile leans for a concave or convex face
   const Z_CORE = 0.10;           // centre of the core shell
   const CORE_S = 0.24;           // core shell: the outer shell at 24% scale
 
@@ -247,7 +247,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
     const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
     const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2, WH_M = 0.02, SOCK_H = 0.007;   // whiffles
-    const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.19, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // actuators. The bracket and its cylinder are long enough for the stroke the dish needs: about 105 mm of push plus 30 mm of tip
+    const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // actuators
     const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06, MOT_R = 0.02, MOT_L = 0.045;   // hinge halves: barrel, lug span off the centre line, drive
     const LOCK = 0.025, LOCK_R = 0.14;                      // launch locks: how far short of the panel they stop; where they stand
 
@@ -363,8 +363,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.hA = 0;                            // fold angle the hinge takes out
       this.G = new T.Matrix4();               // current hinge transform, stowed to now
       this.flat = null; this.flatQ = null;    // position and attitude with the net fully open
-      this.tipAx = new V3(1,0,0); this.tipA = 0;   // panel tip for a concave face: axis in the frame, angle
-      this.sag = 0; this.pis = 0;                  // how far forward of the centre panel it sits on the dish; its piston now
+      this.pis = 0;                           // how far its actuators have pushed the panel out
 
       // drawing
       const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
@@ -476,7 +475,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // and the front tile, where every fibre comes home: six corner rails, four decks, and on each of the three tiers six
   // nodes, one to a side. The nodes stand off the mast and off each other, so the cage is mostly open space: room for
   // the fibre to fan out, and for every node to shed its heat through the open sides.
-  (() => { const z0 = Z_CORE_F + 0.17, z1 = Z_FRONT - 0.25, TIERS = 3, DECK = 0.012, S3 = Math.sqrt(3), items = [];
+  (() => { const z0 = Z_CORE_F + 0.17, z1 = Z_FRONT - 0.15, TIERS = 3, DECK = 0.012, S3 = Math.sqrt(3), items = [];
     const R_DECK = 0.28, R_RAIL = 0.262, N_IN = 0.1, N_OUT = 0.215, GAP = 0.022;   // deck and rail circumradius; a node's inner and outer face (inradius); half the gap between nodes
     const hex = r => Array.from({ length:6 }, (_, i) => new T.Vector2(Math.cos((30 + 60*i)*PI/180)*r, Math.sin((30 + 60*i)*PI/180)*r));   // flats face 0, 60, ...
     const tierH = (z1 - z0 - DECK)/TIERS, deck = slab(hex(R_DECK), [hex(0.075)], 0, DECK);
@@ -580,27 +579,26 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const ss = x => x <= 0 ? 0 : x >= 1 ? 1 : x*x*(3 - 2*x);
   const tmp = new V3(), tmp2 = new V3(), nn = new V3(), pk = new V3();
   const hm = new T.Matrix4();
-  let kappa = 0, sagMax = 0;
-  const pq = new T.Quaternion();
-  function hingeTransforms(u, k){
+  let kappa = 0;
+  // more: extra travel on every hinge, past flat (radians)
+  function hingeTransforms(u, k, more){
     order.forEach(f => {
       if (!f.par) { f.G.identity(); return; }
-      hm.makeRotationAxis(f.hD, f.hA*k*ss((u - (f.depth - 1)*0.18)/0.46));
+      hm.makeRotationAxis(f.hD, f.hA*k*ss((u - (f.depth - 1)*0.18)/0.46) + (more || 0));
       tmp.copy(f.hP).applyMatrix4(hm);
       hm.setPosition(f.hP.x - tmp.x, f.hP.y - tmp.y, f.hP.z - tmp.z);
       f.G.multiplyMatrices(f.par.G, hm);
     });
   }
   function pose(t){
-    hingeTransforms(t, 1);
-    // the frames lock flat; then the actuators tip each panel toward the axis (concave) or away from it (convex)
-    const act = kappa*ss((t - 0.9)/0.1);
+    // The dish is made by the hinges, not the panels. Run every hinge the same few degrees past flat and all nineteen
+    // tiles lie against one sphere, a bowl (concave); stop them the same few degrees short and it is a dome (convex).
+    // Neighbours stay joined along their hinge the whole way, so the face is one surface with no steps. The panel
+    // actuators only trim.
+    hingeTransforms(t, 1, kappa*DISH_HINGE*ss((t - 0.9)/0.1));
     order.forEach(f => {
       f.obj.position.copy(f.ps).applyMatrix4(f.G);
       f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
-      // and pushes it out to its place on the dish, so the panels' edges meet. A panel can be pushed out but not pulled
-      // in (its launch locks are in the way), so concave pushes the rim forward and convex pushes the middle forward.
-      f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA), act >= 0 ? act*f.sag : -act*(sagMax - f.sag));
     });
     setWebs();
     beam.visible = t > 0.999;
@@ -608,18 +606,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the fully open net, which the port webs plan their anchors against
   hingeTransforms(1, 1);
   order.forEach(f => { f.flat = f.ps.clone().applyMatrix4(f.G); f.flatQ = new T.Quaternion().setFromRotationMatrix(f.G).multiply(f.qs); });
-  // Each panel tips in proportion to its distance from the axis, so all their normals meet at one point on the axis: a
-  // dish, with the outermost panel at TILT. Each panel is also pushed out to the dish's depth at its distance (sag), so
-  // the face is one surface, not a staircase of tipped facets.
-  (function(){
-    const r = f => Math.hypot(f.flat.x, f.flat.y), rMax = Math.max(...order.map(r));
-    order.forEach(f => { if (r(f) < 1e-6) return;
-      f.tipA = Math.atan(r(f)/rMax*Math.tan(TILT));
-      f.sag = r(f)*r(f)*Math.tan(TILT)/(2*rMax);   // the paraboloid whose slope at r is that tip
-      sagMax = Math.max(sagMax, f.sag);
-      f.tipAx.set(-f.flat.y, f.flat.x, 0).normalize().applyQuaternion(f.flatQ.clone().invert());   // z x radial, in the frame
-    });
-  })();
+  // How far each hinge over- or under-travels for the dish. Two hexagons hinged on a shared edge and folded by d both
+  // touch a sphere of radius (half a tile)/tan(d/2); so does the next tile, and the next. The sphere that puts the
+  // outermost tile at TILT has radius rMax/sin(TILT).
+  const DISH_HINGE = (() => { const rMax = Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y)));
+    return 2*Math.atan(A*Math.sqrt(3)/2/(rMax/Math.sin(TILT))); })();
 
   // ---- port webs ----
   // Stowed, each of the 12 pentagonal gaps in the shell holds one horn at its centre, face flush with the shell, slung
@@ -772,9 +763,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PARTS = [
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments. A hexagonal ring on the tile\'s outline, with power and fibre running inside it, and a delta frame within it whose three arms point at the three neighbouring tiles. Half a hinge on the ring opposite each arm, and three launch-lock posts the panel is pulled down onto for launch. Stowed, the rings are the shell.'],
-    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta frame\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. With the frames locked flat they tip each panel toward the axis for a concave face or away from it for convex: a faceted dish.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta frame\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They seat the panel on its locks for launch, lift it off in orbit, and trim each panel\'s aim; the hinges make the dish.'],
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
-    ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
+    ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames. Run every hinge a few degrees past flat and the array is a bowl; stop them short and it is a dome, every tile against one sphere. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
@@ -814,6 +805,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the open net spans the tile centre furthest out, plus half a tile either side
   document.getElementById('d-ap').textContent = (2*(Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5)).toFixed(1) + ' m, thinned';
   // stowed: the furthest panel corner from the shell centre
+  document.getElementById('d-dish').textContent = (DISH_HINGE*180/PI).toFixed(1) + '° per hinge, ' + Math.round(TILT*180/PI) + '° at the rim';
   document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, PL_R)).toFixed(1) + ' m';
   resize(); resetView(); paint();
   let last = performance.now();
