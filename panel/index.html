@@ -94,7 +94,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
       <div><label for="drop">Hinge axis below panel <output id="o-drop"></output></label><input type="range" id="drop" min="0" max="420" value="115"></div>
       <div><label for="tip">Panel tip <output id="o-tip"></output></label><input type="range" id="tip" min="-120" max="120" value="0"></div>
       <div><label for="dir">Tip direction <output id="o-dir"></output></label><input type="range" id="dir" min="0" max="360" value="30"></div>
-      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-60" max="60" value="0"></div>
+      <div><label for="pis">Piston <output id="o-pis"></output></label><input type="range" id="pis" min="-60" max="220" value="0"></div>
     </section>
 
     <section>
@@ -177,8 +177,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   // cylinder up through the window to a ball under the whiffle. Two side by side under each arm.
   const BOT_T = 0.04, ACT_TILT = 12*deg;             // bodies BOT_T either side of the arm's centre line, each pair leaning together by ACT_TILT
   const BALL_R = 0.011;                              // shaft ball radius
-  const BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness; round hub where the cylinder docks
-  const ROD_R = 0.006, STROKE = 0.06;                // shaft, how far it runs
+  const BODY_L = 0.19, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // ∪ bracket: height, depth across the arm; cylinder radius; plate thickness; round hub where the cylinder docks
+  const ROD_R = 0.006, STROKE = 0.17;                // shaft, how far it runs: enough for the Orchid's 6° dish, about 105 mm of push plus 30 mm of tip
   const L_MIN = 0.07, L_MAX = L_MIN + STROKE;        // body mouth to shaft ball centre, shaft in and out
   // Hinge fittings: the delta frame is also the backplane, the only thing that joins one tile to the next. Each arm ends in
   // half a hinge: a lug from the arm's end to a barrel on the hinge axis, on one side of the arm's centre line, with the
