@@ -182,14 +182,6 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const scene = new T.Scene(), root = new T.Group();
   scene.add(root);
 
-  // ---- tail. The core shell is built further down, from the tile geometry ----
-  // calyx: three nested V-groove shields on the spine, cupped toward the core. Each one intercepts heat coming down
-  // the spine from the core and sheds it sideways to space, so the tail end stays cold and still.
-  [[-0.42, 0.38], [-0.60, 0.30], [-0.78, 0.22]].forEach(c => {
-    const cup = part('rad', zCyl(c[1], 0.06, 0.16, 6, true));
-    cup.position.z = c[0] - 0.08; root.add(cup);
-  });
-
   // ---- truncated icosahedron: the 20 hex faces are the stowed tile poses ----
   function hexFaces(){
     const p = (1 + Math.sqrt(5))/2, k = 3*A/2, v = [];
@@ -220,6 +212,19 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // is declared here, so a tile never picks up a field anywhere else.
   const hexPrism = (r, h) => new T.CylinderGeometry(r, r, h, 6, 1)
     .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // axis -> z, vertex 0 -> +x
+  // a flat slab from an outline (and holes), z0 to z0 + h
+  const slab = (outline, holes, z0, h) => { const sh = new T.Shape(outline); (holes || []).forEach(q => sh.holes.push(new T.Path(q)));
+    return new T.ExtrudeGeometry(sh, { depth:h, bevelEnabled:false }).translate(0, 0, z0); };
+  // fuse shapes into one solid and one set of outlines. Each item: [geometry, matrix or null, outline angle]
+  const fuse = items => { const pos = [], edge = [];
+    items.forEach(([geo, m, angle]) => { const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
+      for (const v of g.attributes.position.array) pos.push(v);
+      for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });
+    return { pos, edge }; };
+  const done = f => { const solid = new T.BufferGeometry(), lines = new T.BufferGeometry();
+    solid.setAttribute('position', new T.Float32BufferAttribute(f.pos, 3)); solid.computeVertexNormals();
+    lines.setAttribute('position', new T.Float32BufferAttribute(f.edge, 3)); return { solid, lines }; };
+
   // ---- the tile mount, after the JWST segments (worked out on the panel bench, panel.html) ----
   // Fixed, at the frame's level: a hexagonal ring on the tile's outline, the raceway for power and fibre, whose corners take
   // the port-web spokes; inside it the delta frame, a hexagon with three arms toward the three neighbouring tiles; half a
@@ -230,21 +235,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const S3 = Math.sqrt(3), deg = PI/180, V2 = T.Vector2, M4 = () => new T.Matrix4();
     const dir2 = a => new V2(Math.cos(a), Math.sin(a)), dir3 = (a, r, z) => new V3(Math.cos(a)*r, Math.sin(a)*r, z || 0);
     const hexPts = inr => Array.from({ length:6 }, (_, i) => dir2(i*PI/3).multiplyScalar(inr*2/S3));   // inradius in, corner 0 on +x
-    const slab = (outline, holes, z0, h) => { const sh = new T.Shape(outline); (holes || []).forEach(q => sh.holes.push(new T.Path(q)));
-      return new T.ExtrudeGeometry(sh, { depth:h, bevelEnabled:false }).translate(0, 0, z0); };
     // a plate standing upright: its profile in (x, z), its thickness along y from y0 to y1
     const upright = (prof, y0, y1) => new T.ExtrudeGeometry(new T.Shape(prof.map(([x, z]) => new V2(x, z))), { depth:y1 - y0, bevelEnabled:false }).rotateX(PI/2).translate(0, y1, 0);
     const move = (x, y, z) => M4().makeTranslation(x, y, z);
-    // fuse shapes into one solid and one set of outlines. Each item: [geometry, matrix or null, outline angle]
-    const fuse = items => { const pos = [], edge = [];
-      items.forEach(([geo, m, angle]) => { const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
-        for (const v of g.attributes.position.array) pos.push(v);
-        for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });
-      return { pos, edge }; };
-    const done = f => { const solid = new T.BufferGeometry(), lines = new T.BufferGeometry();
-      solid.setAttribute('position', new T.Float32BufferAttribute(f.pos, 3)); solid.computeVertexNormals();
-      lines.setAttribute('position', new T.Float32BufferAttribute(f.edge, 3)); return { solid, lines }; };
-
     const ZB = -FR_TH/2, ZT = FR_TH/2, PB = -PL_TH/2;       // frame underside and top; panel back, in the panel's own frame
     const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1;   // hinge axis; ring outer and inner inradius; arm tongue half-width at the ring
     const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
@@ -341,8 +334,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     })();
     static rod = new T.CylinderGeometry(0.006, 0.006, 1, 6, 1).rotateX(PI/2).translate(0, 0, 0.5);   // actuator shaft, unit length, stretched to fit
 
-    // c: centre of its hex face on the shell, v0: that face's first corner. cap: the aft cap, the 20th hexagon, a
-    // blank closure plate that never deploys and carries no elements.
+    // c: centre of its hex face on the shell, v0: that face's first corner. cap: the aft tile, the 20th hexagon. It never
+    // deploys: it closes the shell and looks back the way the craft came, the link home, steered by its own actuators.
     // all: every face of the shell, to find which way this one's neighbours lie
     constructor(c, v0, cap, all){
       // stowed, as a face of the shell
@@ -377,7 +370,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.obj.add(fused(ak, MOUNT.act, 'Actuator'));
       this.panel = fused(pk, MOUNT.panel, 'Panel');
       this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
-      if (!cap) this.panel.add(new T.Points(Tile.dots, dotMat));
+      this.panel.add(new T.Points(Tile.dots, dotMat));
       this.panel.position.z = Z_PL; this.obj.add(this.panel);
       this.legs = MOUNT.legs.map(() => { const rod = part(ak, Tile.rod, { name:'Actuator rod' }); this.obj.add(rod); return { rod }; });
       this.setPanel(new T.Quaternion());
@@ -449,7 +442,42 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const axial = (key, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6)); o.position.z = (z0 + z1)/2; root.add(o); return o; };
   // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
   axial('aft', 0.18, Z_AFT, Z_AFT + REF_H);
-  axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A);   // spine: isolation strut from the housing to the core, carrying the calyx shields
+  axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A);   // spine: isolation strut from the housing to the core, carrying the leaves
+
+  // ---- radiator leaves ----
+  // Six blades hinged on a collar low on the spine. Stowed they stand forward round the core as a closed cup, a calyx,
+  // inside the shell; once the tiles have peeled away they swing out and back, and face empty space aft. They carry the
+  // core's and the processors' waste heat: a midrib brings it out from the collar and veins spread it over the blade.
+  const LEAF_Z = -1.0, LEAF_R0 = 0.18, LEAF_L = 1.3, LEAF_STOW = 25*PI/180, LEAF_OPEN = 112*PI/180;   // collar height and radius; blade length; angle off the axis, stowed and open
+  const leafShape = (() => {
+    const out = [[0.07, 0], [0.23, 0.75], [0.23, 0.95], [0.06, LEAF_L]];                 // half outline: half-width at each distance from the hinge
+    const hw = d => { for (let i = 1; i < out.length; i++) if (d <= out[i][1]) { const [w0, d0] = out[i - 1], [w1, d1] = out[i]; return w0 + (w1 - w0)*(d - d0)/(d1 - d0); } return 0; };
+    const up = new T.Matrix4().makeBasis(new V3(0, 1, 0), new V3(0, 0, 1), new V3(1, 0, 0));   // drawn flat as (across, along); stood up so it runs along z, thin along x
+    const pts = out.map(([w, d]) => new T.Vector2(w, d)).concat(out.slice().reverse().map(([w, d]) => new T.Vector2(-w, d)));
+    const f = fuse([[slab(pts, null, -0.006, 0.012).applyMatrix4(up)],
+      [slab([[-0.02, 0], [0.02, 0], [0.012, LEAF_L], [-0.012, LEAF_L]].map(([w, d]) => new T.Vector2(w, d)), null, -0.016, 0.032).applyMatrix4(up)]]);
+    for (let d = 0.14; d < LEAF_L - 0.12; d += 0.115){ const d2 = d + 0.09, w = 0.86*Math.min(hw(d), hw(d2));   // veins, on both faces
+      for (const x of [-0.0065, 0.0065]) for (const sg of [-1, 1]) f.edge.push(x, sg*0.02, d, x, sg*w, d2); }
+    return done(f);
+  })();
+  const leaves = Array.from({ length:6 }, (_, k) => { const a = k*PI/3, g = new T.Group(), m = new T.Mesh(leafShape.solid, fillMat);
+    m.name = 'Leaf'; m.userData.key = 'rad'; g.add(m, new T.LineSegments(leafShape.lines, lineMat('rad')));
+    g.position.set(Math.cos(a)*LEAF_R0, Math.sin(a)*LEAF_R0, LEAF_Z); root.add(g);
+    return { g, qz:new T.Quaternion().setFromAxisAngle(zUp, a) }; });
+  axial('rad', 0.21, LEAF_Z - 0.035, LEAF_Z + 0.035).children[0].name = 'Leaf collar';
+  const leafAx = new V3(0, 1, 0), leafQ = new T.Quaternion();
+  const setLeaves = t => { leafQ.setFromAxisAngle(leafAx, LEAF_STOW + (LEAF_OPEN - LEAF_STOW)*ss((t - 0.5)/0.45));
+    leaves.forEach(l => l.g.quaternion.copy(l.qz).multiply(leafQ)); };
+
+  // ---- processor stack ----
+  // The computer: hexagonal decks threaded on the mast between the core and the front tile, where every fibre comes home.
+  // Beamforming for the tiles, and the horns' signals digitised and analysed. Wide decks are boards, narrow ones the cold
+  // plates between them, which pass their heat down the mast and spine to the leaves.
+  (() => { const items = [], z0 = Z_CORE_F + 0.1;
+    for (let i = 0; i < 9; i++){ const board = i % 2 === 0, h = board ? 0.05 : 0.025;
+      items.push([zCyl(board ? 0.24 : 0.17, board ? 0.24 : 0.17, h, 6), new T.Matrix4().makeTranslation(0, 0, z0 + i*0.0475 + h/2)]); }
+    const f = done(fuse(items)), g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = 'Processor stack'; m.userData.key = 'dsp';
+    g.add(m, new T.LineSegments(f.lines, lineMat('dsp'))); root.add(g); })();
 
   // spokes: hollow 10 mm tubes, unit length on +z, stretched to fit; and the ball joints at their ends
   const SPOKE_R = 0.005, BALL_R = 0.012;
@@ -463,6 +491,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // A type only states its sizes. Its shape is built from them once, the first time one is made, and every horn of
   // that type reuses it, so a change to a type changes all of its horns.
   // There are 12, one in each port of the shell: 6 of each type.
+  const EAR_OUT = 0.03, EAR_UP = 0.006;                                       // horn spoke ears: how far the eye stands off the corner, and proud of the face
   const PUCK_H = 0.03;                                                        // face thickness
   const pent = (rt, rb, h, open) => zCyl(rt, rb, h, 5, open).rotateZ(PI/2);   // pentagonal section, corner 0 on +x
   const pentCorner = (k, r) => new V3(Math.cos(k*2*PI/5)*r, Math.sin(k*2*PI/5)*r, 0);
@@ -470,6 +499,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   class Horn extends T.Group {
     static get puck(){ return this.body*1.3; }   // face corner radius: the face overhangs the body, and the spokes join there
     static get reach(){ return this.depth; }      // back of the body to the back of the face
+    static get ear(){ return this.puck + EAR_OUT; }   // where the spokes land: the eyes of the ears on the face's corners
     static get shape(){                              // this type's parts, built on first use
       if (!Object.prototype.hasOwnProperty.call(this, '_shape')) {
         const z = PUCK_H/2 + 0.001, rIn = 0.8*this.puck, pitch = 0.05, s3 = Math.sqrt(3);
@@ -481,13 +511,32 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
           if (inside(x, y)) dots.push(new V3(x, y, z + 0.001));
         }
         this._shape = {
-          body: pent(this.body, this.body, this.depth),
-          puck: pent(this.puck, this.puck, PUCK_H),
+          body: this.finned(),
+          puck: this.eared(),
           inset: new T.BufferGeometry().setFromPoints([0, 1, 2, 3, 4, 0].map(k => pentCorner(k, 0.88*this.puck).setZ(z))),
           dots: new T.BufferGeometry().setFromPoints(dots),
         };
       }
       return this._shape;
+    }
+    // the face with a spoke ear on each corner: a tapered tab out to a hex eye that stands proud front and back, like the
+    // ears on the tiles' rings. A spoke's ball joint seats on each end of the eye.
+    static eared(){
+      const items = [[pent(this.puck, this.puck, PUCK_H)]];
+      for (let k = 0; k < 5; k++){ const a = k*2*PI/5, C = new T.Vector2(Math.cos(a), Math.sin(a)), t = new T.Vector2(-C.y, C.x);
+        const at = (r, w) => C.clone().multiplyScalar(r).addScaledVector(t, w), E = at(this.ear, 0);
+        items.push([slab([at(this.puck - 0.0206, 0.0283), at(this.ear, 0.011), at(this.ear, -0.011), at(this.puck - 0.0206, -0.0283)], null, -PUCK_H/2, PUCK_H)],
+          [zCyl(0.014, 0.014, PUCK_H + 2*EAR_UP, 6), new T.Matrix4().makeTranslation(E.x, E.y, 0), 40]); }
+      return done(fuse(items)).solid;
+    }
+    // the body with cooling fins: three thin plates along each of its five sides. The horn sheds its own heat; the
+    // spokes are too thin to carry any away.
+    static finned(){
+      const items = [[pent(this.body, this.body, this.depth)]], ap = this.body*Math.cos(PI/5), h = 0.2*this.body, w = this.body*Math.sin(PI/5)*0.55;
+      const fin = new T.BoxGeometry(h, 0.004, this.depth*0.8);
+      for (let k = 0; k < 5; k++) for (const j of [-1, 0, 1])
+        items.push([fin, new T.Matrix4().makeRotationZ((k + 0.5)*2*PI/5).multiply(new T.Matrix4().makeTranslation(ap + h/2, j*w, 0))]);
+      return done(fuse(items)).solid;
     }
     constructor(){
       super();
@@ -535,7 +584,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       f.obj.quaternion.setFromRotationMatrix(f.G).multiply(f.qs);
       f.setPanel(pq.setFromAxisAngle(f.tipAx, -act*f.tipA));
     });
-    setWebs();
+    setWebs(); setLeaves(t);
     beam.visible = t > 0.999;
   }
   // the fully open net, which the port webs plan their anchors against
@@ -594,10 +643,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       w.anchors.push({ f:a.f, loc:a.loc, vi });
     });
     w.obj = new T.Group(); w.horn = vib ? new HornA() : new HornB();
-    w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
+    w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.ear = w.horn.kind.ear; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
     // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a ball joint: a ball with a bore through
     // it, in a socket, so the fibre passes straight through and the joint seals while it swivels. A pair of spokes runs
-    // from the front and back of a tile's spoke ear to the front and back edge of a face corner, with a joint at each of
+    // from the front and back of a tile's spoke ear to the front and back of the ear on a face corner, with a joint at each of
     // the four ends: the horn's face has a rim of its own, just like the tile. The fibre runs on through
     // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
     // so each horn has several paths home: lose one and the signal takes another.
@@ -608,7 +657,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         ball(an.f.obj, an.loc.clone().setZ(s ? MOUNT.EAR_Z : -MOUNT.EAR_Z));
       }
     });
-    new Set(w.anchors.map(an => an.vi)).forEach(vi => { for (const z of [0, PUCK_H]) ball(w.horn, pentCorner(vi, w.puck).setZ(w.horn.reach + z)); });
+    new Set(w.anchors.map(an => an.vi)).forEach(vi => { for (const z of [-EAR_UP, PUCK_H + EAR_UP]) ball(w.horn, pentCorner(vi, w.ear).setZ(w.horn.reach + z)); });
     return w;
   });
 
@@ -653,7 +702,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       w.anchors.forEach((an, i) => {
         const ang = an.vi*2*PI/5;
         for (let s = 0; s < 2; s++){
-          pk.set(Math.cos(ang)*w.puck, Math.sin(ang)*w.puck, s ? PUCK_H : 0).applyQuaternion(w.obj.quaternion).add(P);
+          pk.set(Math.cos(ang)*w.ear, Math.sin(ang)*w.ear, s ? PUCK_H + EAR_UP : -EAR_UP).applyQuaternion(w.obj.quaternion).add(P);
           tmp.set(0, 0, s ? MOUNT.EAR_Z : -MOUNT.EAR_Z).applyQuaternion(an.f.obj.quaternion).add(an.p);
           setWire(w.wires[2*i + s], tmp, pk);
         }
@@ -704,13 +753,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments. A hexagonal ring on the tile\'s outline, with power and fibre running inside it, and a delta frame within it whose three arms point at the three neighbouring tiles. Half a hinge on the ring opposite each arm, and three launch-lock posts the panel is pulled down onto for launch. Stowed, the rings are the shell.'],
     ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta frame\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. With the frames locked flat they tip each panel toward the axis for a concave face or away from it for convex: a faceted dish.'],
-    ['aft',   'Aft cap and inertial reference', 'The 20th frame and panel never deploy. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
+    ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
-    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a body. Read the hull echo timing for heartbeat and breath.'],
-    ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo.'],
+    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a finned body, with a spoke ear on each corner of the face. Read the hull echo timing for heartbeat and breath.'],
+    ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. The fins shed its own heat; the spokes carry only fibre.'],
     ['core',  'Core shell', 'The outer shell again at 30% scale: 20 hexagons, 12 pentagons. Houses the singularity.'],
-    ['rad',   'Spine and calyx shields ×3', 'Isolation strut with three V-groove shields. They shed core heat sideways so the tail stays cold and quiet.']
+    ['dsp',   'Processor stack', 'The computer, on the mast where every fibre comes home: boards for beamforming and for digitising and analysing what the horns hear, with cold plates between them.'],
+    ['rad',   'Spine and radiator leaves ×6', 'Six blades on a collar low on the spine. Stowed they stand round the core as a closed cup; open they swing out and back to face empty space, and shed the core\'s and the processors\' heat.']
   ];
   const list = document.getElementById('parts');
   PARTS.forEach(([k, name, desc]) => {
