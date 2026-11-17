@@ -144,13 +144,13 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
     return out; };
   const NF = `600 ${F1}px ${FAM}`, BF = `${F2}px ${FAM}`, NL = Math.round(F1*1.3);   // name font, body font, name line height
   const notes = NOTES.map(([n, key, name, body, how]) => {
-    const e = ext(target(n, key)), names = wrap(name, NF), lines = wrap(body, BF), [x0, y1] = toPx({ x:e.x0, y:e.y1 }), [x1, y0] = toPx({ x:e.x1, y:e.y0 });
+    const e = ext(target(n, key)), names = wrap(name, NF), lines = !body ? [] : (g.font = BF, g.measureText(body).width <= TW*1.6) ? [body] : wrap(body, BF), [x0, y1] = toPx({ x:e.x0, y:e.y1 }), [x1, y0] = toPx({ x:e.x1, y:e.y0 });
     // edge: how far right the piece reaches within a band of rows (drawing pixels), for a leader that leaves it sideways
     const edge = (ya, yb) => { let m = -1e9; target(n, key).forEach(o => o.traverse(q => { if (!q.geometry || q.isPoints || q.userData.wide || !shown(q)) return;
       const pos = q.geometry.attributes.position; for (let i = 0; i < pos.count; i++){ const [px, py] = toPx(toCam(v.fromBufferAttribute(pos, i).applyMatrix4(q.matrixWorld)));
         if (py >= ya && py <= yb) m = Math.max(m, px); } })); return m; };
     return { how:how || 'down', x0, x1, edge, top:y1, bot:y0, mid:(y0 + y1)/2, names, lines, nh:names.length*NL + Math.round(F1*0.6),
-      h:names.length*NL + Math.round(F1*0.6) + lines.length*LH };
+      h:names.length*NL + (lines.length ? Math.round(F1*0.6) : 0) + lines.length*LH };
   });
   // one row for every note that hangs below, just under the lowest part on the axis
   const TE = F1;   // bracket teeth
@@ -163,7 +163,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
       legs.push([[nt.x0, by - TE], [nt.x0, by], [nt.x1, by], [nt.x1, by - TE]], [[cx, by], [cx, row - F1*0.9]]); return; }
     if (nt.how === 'bracket'){ const bx = nt.x1 + CL, ex = bx + GX, ay = toPx(toCam(new V(0,0,0)))[1];   // tick and note on the axis
       legs.push([[bx - TE, nt.top], [bx, nt.top], [bx, nt.bot], [bx - TE, nt.bot]], [[bx, ay], [ex, ay]]);
-      nt.cx = ex + F1*0.6 + TW/2; nt.y = ay - nt.h/2; return; }
+      nt.cx = ex + F1*0.6 + TW/2; nt.y = ay - F1*0.65; return; }
     const sy = nt.how === 'right' ? row - GX*2 : nt.mid, sx = nt.how === 'right' ? nt.edge(sy - GX, sy + GX) + CL : nt.x0 - CL;
     nt.cx = nt.how === 'right' ? nt.x1 + GX + TW/2 : nt.x0 - GX - TW/2;
     if (nt.how === 'left-below'){ nt.cx -= GX; nt.y = sy + GX*1.5; legs.push([[sx, sy], [nt.cx, sy], [nt.cx, nt.y - F1*0.9]]); }
@@ -195,6 +195,7 @@ const EXPLODE = ({ dir, up, W, LW, ORDER, NOTES }) => {
   // along its length) and draws the dots LW wide; __unfat puts the thin lines back.
   await p.evaluate(() => {
     const { T, scene, dotMat } = window.__r;
+    dotMat.userData.fixed = true;   // renders set the dot width themselves; the page's zoom rule stays out
     const shown = o => { for (let a = o; a; a = a.parent) if (!a.visible) return false; return true; };
     let made = [], hid = [];
     window.__fat = (LW, w, h) => {

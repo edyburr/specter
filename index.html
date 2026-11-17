@@ -34,7 +34,21 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14p
 .hud{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;
   padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   font-family:var(--mono);font-size:11px;color:var(--muted);pointer-events:none}
-.hud button{pointer-events:auto}
+.hud button,.hud .seg{pointer-events:auto}
+.hud .tools{display:flex;gap:8px;align-items:center;margin-left:auto}
+.hud .seg{background:var(--sheet)}
+.hud .ghost{white-space:nowrap}
+.hud .seg button{font:500 11px var(--mono);padding:6px 10px}
+/* part picking: a tip that follows the cursor, and a pin that stays on the selected part */
+.tip,.pin{position:absolute;left:0;top:0;pointer-events:none;font:500 11px var(--mono);white-space:nowrap;will-change:transform}
+.tip{padding:3px 6px;background:var(--sheet);color:var(--ink);border:1px solid var(--rule);border-radius:3px}
+.pin::before{content:"";position:absolute;left:-5px;top:-5px;width:8px;height:8px;border:1px solid var(--accent);border-radius:50%;background:var(--sheet)}
+.pin span{position:absolute;left:10px;top:-22px;padding:3px 6px;background:var(--sheet);color:var(--accent);border:1px solid var(--accent);border-radius:3px}
+.sel-name{font:600 15px var(--mono);overflow-wrap:anywhere;color:var(--accent)}
+.sel-kind{color:var(--muted);font-size:12.5px;margin-top:2px}
+.sel-act{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+details.note summary{cursor:pointer;font:500 11px var(--mono);letter-spacing:.12em;text-transform:uppercase}
+details.note p{margin:8px 0 0}
 .fail{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
 
 .block{flex:0 0 340px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;background:var(--sheet);border-left:1px solid var(--rule);
@@ -52,10 +66,8 @@ section{min-width:0}
 .ctl input[type=range]{display:block;width:100%;margin:0;accent-color:var(--accent)}
 .parts{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
 .parts button{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--rule);color:var(--ink);font:inherit;padding:8px 6px;cursor:pointer}
-.parts button b{font-weight:600;display:block}
-.parts button span{color:var(--muted);font-size:12.5px}
-.parts button[aria-pressed="true"]{box-shadow:inset 3px 0 0 var(--accent)}
-.parts button[aria-pressed="true"] b{color:var(--accent)}
+.parts button{padding:6px}
+.parts button[aria-pressed="true"]{box-shadow:inset 3px 0 0 var(--accent);color:var(--accent)}
 dl{display:grid;grid-template-columns:1fr auto;gap:5px 12px;margin:0;font-size:13px}
 dt{color:var(--muted)} dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
 .note{color:var(--muted);font-size:12.5px;margin:0}
@@ -68,12 +80,35 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   .hud{justify-content:flex-end}
   .block{flex:1 1 auto;border-left:0;border-top:1px solid var(--rule)}
 }
+:root[data-theme="cad"]{
+  --bg:#fff; --sheet:#fff; --ink:#000; --muted:#444; --rule:#000;
+  --line:#000; --dim:#d4d4d4; --fill:#fff; --dot:#000; --accent:#d00000; --ok:#1a6b36; color-scheme:light }
 </style>
+<script>
+/* CAD theme (white sheet, black edges): open with ?theme=cad, press T to toggle; remembered per browser. */
+(()=>{ const root = document.documentElement; let t = null;
+  try { t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('theme'); } catch(e){}
+  if (t === 'cad') root.dataset.theme = 'cad';
+  addEventListener('keydown', e => { if (e.key !== 't' && e.key !== 'T' || e.ctrlKey || e.metaKey || e.altKey || /input|textarea|select/i.test(e.target.tagName)) return;
+    const on = root.dataset.theme !== 'cad'; if (on) root.dataset.theme = 'cad'; else delete root.dataset.theme;
+    try { localStorage.setItem('theme', on ? 'cad' : ''); } catch(e){} });
+})();
+</script>
 
 <div class="app">
   <div class="view" id="view">
-    <canvas id="c" aria-label="3D wireframe of the SP3-CTR. Drag to rotate, scroll or pinch to zoom."></canvas>
-    <div class="hud"><span>drag: rotate · pinch / scroll: zoom · two fingers / right-drag: pan</span><button class="ghost" id="reset" type="button">Reset view</button></div>
+    <canvas id="c" aria-label="3D wireframe of the SP3-CTR. Drag to rotate, scroll or pinch to zoom, click a part to name it."></canvas>
+    <div class="tip" id="tip" hidden></div>
+    <div class="pin" id="pin" hidden><span id="pin-name"></span></div>
+    <div class="hud"><span id="hint"></span>
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Camera">
+          <button type="button" data-cam="orbit" aria-pressed="true">Orbit</button>
+          <button type="button" data-cam="free" aria-pressed="false" title="Free camera (F)">Free</button>
+        </div>
+        <button class="ghost" id="reset" type="button">Reset view</button>
+      </div>
+    </div>
     <div class="fail" id="fail" hidden>The 3D library did not load, so the model cannot be drawn. Reload the page to try again.</div>
   </div>
 
@@ -82,6 +117,20 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       <h1>SP3-CTR</h1>
       <p class="sub">Signature Projector, mark 3, Coherent Tone Resonator. Concept wireframe, 10 GHz.</p>
     </header>
+
+    <section aria-live="polite">
+      <h2>Selected part</h2>
+      <p class="note" id="sel-none">Click a part in the view to see its name.</p>
+      <div id="sel-body" hidden>
+        <div class="sel-name" id="sel-name"></div>
+        <div class="sel-kind" id="sel-kind"></div>
+        <div class="sel-act">
+          <button class="ghost" id="sel-copy" type="button">Copy name</button>
+          <button class="ghost" id="sel-orbit" type="button">Orbit here</button>
+          <button class="ghost" id="sel-clear" type="button">Clear</button>
+        </div>
+      </div>
+    </section>
 
     <section class="ctl">
       <div>
@@ -106,7 +155,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     </section>
 
     <section>
-      <h2>Parts. Tap to highlight</h2>
+      <h2>Highlight a kind of part</h2>
       <ul class="parts" id="parts"></ul>
     </section>
 
@@ -128,7 +177,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       </dl>
     </section>
 
-    <p class="note">Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke ends in a cannulated ball joint, a ball with a bore through it in a sealed socket, so the fibre passes through while the joint swivels, on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p>
+    <details class="note"><summary>Design notes</summary><p>Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke ends in a cannulated ball joint, a ball with a bore through it in a sealed socket, so the fibre passes through while the joint swivels, on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p></details>
   </aside>
 </div>
 
@@ -149,6 +198,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const GAP = 0.12;              // frame front to panel back, spanned by the actuators
   const PL_TH = 0.02;            // panel thickness
   const PL_R = R*0.95;           // panel circumradius: a little inside its frame, so tipped panels clear each other
+  const DOT_PITCH = 0.105;       // spacing of the element dots, the same on every face: tiles and horns alike
   const Z_PL = FR_TH/2 + GAP + PL_TH/2;   // panel centre above frame centre
   const TILT = 6*Math.PI/180;    // how far the outermost panel tips for a concave or convex face. The lift it needs grows with this: about 180 mm at 6°, since the pinwheel's arms reach 3.5 m from the axis
   const Z_CORE = 0.10;           // centre of the core shell
@@ -157,7 +207,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
   // ---- materials ----
   const fillMat = new T.MeshBasicMaterial({ side:T.DoubleSide, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1 });
-  const dotMat = new T.PointsMaterial({ size:2.2, sizeAttenuation:false });
+  const dotMat = new T.PointsMaterial({ size:2.2, sizeAttenuation:false });   // 2.2 px at the opening zoom and closer; the loop shrinks it when zoomed out
   const beamMat = new T.LineDashedMaterial({ dashSize:0.12, gapSize:0.09 });
   const lineMats = {};
   const lineMat = k => lineMats[k] || (lineMats[k] = new T.LineBasicMaterial());
@@ -170,12 +220,18 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     if (!outlines.has(k)) outlines.set(k, new T.EdgesGeometry(geo, angle));
     return outlines.get(k);
   };
+  // Every solid has a name that is the same on every run and in every export, built from what it is, never from a
+  // counter: '<owner> / <label>', e.g. 'Tile 07 / Actuator rod 3', 'Horn A2 / Spoke, Tile 07 corner 4, front'.
+  // owner: the tile or horn it belongs to (anything with a name), none for the one-off parts. part: what kind of thing
+  // it is, the same for every copy ('Actuator rod'); Blender names the shared mesh after it. Names are filled in once
+  // the craft is built (nameParts), since tiles only get their numbers from the net.
+  const tag = (m, kind, label, owner) => { m.userData.part = kind; m.userData.label = label || kind; m.owner = owner || null; m.name = m.userData.label; return m; };
   function part(key, geo, o){
     o = o || {};
     const g = new T.Group();
-    const m = new T.Mesh(geo, fillMat); m.name = o.name || key; m.userData.key = key;
-    g.add(m);
-    g.add(new T.LineSegments(outline(geo, o.angle || 20), lineMat(key)));
+    const m = tag(new T.Mesh(geo, fillMat), o.part || o.label || key, o.label, o.owner); m.userData.key = key;
+    m.edges = new T.LineSegments(outline(geo, o.angle || 20), lineMat(key));
+    g.add(m, m.edges);
     return g;
   }
   const zCyl = (rt, rb, h, seg, open) => new T.CylinderGeometry(rt, rb, h, seg, 1, !!open).rotateX(PI/2); // axis along z
@@ -218,7 +274,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     return new T.ExtrudeGeometry(sh, { depth:h, bevelEnabled:false }).translate(0, 0, z0); };
   // fuse shapes into one solid and one set of outlines. Each item: [geometry, matrix or null, outline angle]
   const fuse = items => { const pos = [], edge = [];
-    items.forEach(([geo, m, angle]) => { const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
+    items.forEach(([geo, m, angle]) => { if (angle === 'lines'){ for (const v of geo.attributes.position.array) edge.push(v); return; }   // ready-made line segments
+      const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
       for (const v of g.attributes.position.array) pos.push(v);
       for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });
     return { pos, edge }; };
@@ -226,8 +283,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     solid.setAttribute('position', new T.Float32BufferAttribute(f.pos, 3)); solid.computeVertexNormals();
     lines.setAttribute('position', new T.Float32BufferAttribute(f.edge, 3)); return { solid, lines }; };
   // several shapes fused and added to the craft as one part
-  const lump = (key, name, items) => { const f = done(fuse(items)), g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = name; m.userData.key = key;
-    g.add(m, new T.LineSegments(f.lines, lineMat(key))); root.add(g); return g; };
+  const lump = (key, name, items) => { const f = done(fuse(items)), g = new T.Group(), m = tag(new T.Mesh(f.solid, fillMat), name); m.userData.key = key;
+    m.edges = new T.LineSegments(f.lines, lineMat(key)); g.add(m, m.edges); root.add(g); return g; };
 
   // ---- the tile mount, after the JWST segments (worked out on the panel bench, panel.html) ----
   // Three layers. The fold frame: a hexagonal ring on the tile's outline, the raceway for power and fibre, with half a
@@ -328,8 +385,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const sockH = SOCK_H + BALL*0.5;
     sockets.forEach(p => { panel.push([zCyl(0.015, 0.015, sockH, 6), move(p.x, p.y, PB - H_W - sockH/2), 40], [new T.IcosahedronGeometry(BALL, 0), move(p.x, p.y, p.z), 1]); });
     const pf = fuse(panel);
+    // The ribs are a coarse isogrid, every other line, so the back reads as structure and not as a dark mat. Wherever
+    // something bolts on behind the panel (a whiffle foot, a socket, a launch lock) the full fine grid stays under it.
+    const pins = [];
+    BASE.forEach(c => { const u = dir3(c, 1), t = dir3(c + PI/2, 1), loc = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
+      [loc(WH_R1, 0), loc(WH_R2, GS/2), loc(WH_R2, -GS/2)].forEach(q => pins.push(snap(q))); });
+    sockets.forEach(p => pins.push(snap(p))); [90, 210, 330].forEach(x => pins.push(snap(dir3(x*deg, LOCK_R))));
+    const pinned = n => pins.some(q => Math.hypot(q.x - n.x, q.y - n.y) < GS*1.01);   // the node or a neighbour of it holds a part
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
+        if (!(di ? (dj ? (i + j) % 2 === 0 : j % 2 === 0) : i % 2 === 0) && !pinned(a) && !pinned(b)) continue;
         pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
     return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, earGeo, EAR_Z };
   })();
@@ -337,7 +402,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     static inset = new T.BufferGeometry().setFromPoints(
       Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*PL_R*0.9, Math.sin(i*PI/3)*PL_R*0.9, PL_TH/2 + 0.001)));
     static dots = (function(){   // stand-in for the element lattice
-      const pts = [], pitch = 0.105, Rm = PL_R*0.84, s3 = Math.sqrt(3);
+      const pts = [], pitch = DOT_PITCH, Rm = PL_R*0.84, s3 = Math.sqrt(3);
       for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){
         const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
         if (Math.abs(y) <= Rm*s3/2 && s3*Math.abs(x) + Math.abs(y) <= s3*Rm) pts.push(new V3(x, y, PL_TH/2 + 0.002));
@@ -379,22 +444,23 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
       // drawing
       const fk = cap ? 'aft' : 'frame', pk = cap ? 'aft' : 'tiles', ak = cap ? 'aft' : 'act';
-      const fused = (key, f, name) => { const g = new T.Group(), m = new T.Mesh(f.solid, fillMat); m.name = name; m.userData.key = key;
-        g.add(m, new T.LineSegments(f.lines, lineMat(key))); return g; };
+      const fused = (key, f, kind, label) => { const g = new T.Group(), m = tag(new T.Mesh(f.solid, fillMat), kind, label, this); m.userData.key = key;
+        m.edges = new T.LineSegments(f.lines, lineMat(key)); g.add(m, m.edges); return g; };
       const dk = cap ? 'aft' : 'delta', lk = cap ? 'aft' : 'lift';
       this.ears = new Set();   // corners that carry a spoke ear
       this.obj = fused(fk, MOUNT.frame, 'Frame');
-      this.obj.add(fused(lk, MOUNT.lift, 'Lift actuator'));
+      this.obj.add(fused(lk, MOUNT.lift, 'Lift actuator', 'Lift actuators'));
       // the stage: everything the lifts carry
       this.stage = fused(dk, MOUNT.delta, 'Delta backplane'); this.obj.add(this.stage);
-      this.stage.add(fused(ak, MOUNT.act, 'Actuator'));
+      this.stage.add(fused(ak, MOUNT.act, 'Actuator', 'Actuator brackets'));
       this.panel = fused(pk, MOUNT.panel, 'Panel');
       this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
       this.panel.add(new T.Points(Tile.dots, dotMat));
       this.panel.position.z = Z_PL; this.stage.add(this.panel);
-      this.legs = MOUNT.legs.map(() => { const rod = part(ak, Tile.rod, { name:'Actuator rod' }); this.stage.add(rod); return { rod }; });
+      this.legs = MOUNT.legs.map((_, i) => { const rod = part(ak, Tile.rod, { part:'Actuator rod', label:`Actuator rod ${i + 1}`, owner:this }); this.stage.add(rod); return { rod }; });
       // each lift's shaft, from the tongue up to the tab on the delta
-      this.lifts = MOUNT.lifts.map(p => Tile.liftStages.map(st => { const r = part(lk, st.geo, { name:'Lift shaft' }); r.position.copy(p); this.obj.add(r); return r; }));
+      this.lifts = MOUNT.lifts.map((p, j) => Tile.liftStages.map((st, i) => {
+        const r = part(lk, st.geo, { part:`Lift shaft, stage ${i + 1}`, label:`Lift ${j + 1} shaft, stage ${i + 1}`, owner:this }); r.position.copy(p); this.obj.add(r); return r; }));
       this.setPanel(new T.Quaternion());
       this.obj.position.copy(this.ps); this.obj.quaternion.copy(this.qs);
     }
@@ -402,8 +468,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // fit the spoke ear beside corner k, once: only the corners a horn's spokes land on have one
     addEar(k){
       if (this.ears.has(k)) return; this.ears.add(k);
-      const f = MOUNT.earGeo[k], key = this.cap ? 'aft' : 'frame', m = new T.Mesh(f.solid, fillMat); m.name = 'Spoke ear'; m.userData.key = key;
-      this.obj.add(m, new T.LineSegments(f.lines, lineMat(key)));
+      const f = MOUNT.earGeo[k], key = this.cap ? 'aft' : 'frame', m = tag(new T.Mesh(f.solid, fillMat), 'Spoke ear', `Spoke ear, corner ${k + 1}`, this); m.userData.key = key;
+      m.edges = new T.LineSegments(f.lines, lineMat(key)); this.obj.add(m, m.edges);
     }
     // push the stage out of the ring by lift, along the tile's normal, and turn the panel about its centre
     setPanel(q, lift){
@@ -438,12 +504,26 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const plateGeo = new T.CylinderGeometry(A*CORE_S*out, A*CORE_S*inn, CORE_T, 6, 1)
       .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // as hexPrism, wide end out
     tiles.forEach(f => items.push([plateGeo, new T.Matrix4().compose(put(f.c), f.qs, one)]));   // collector plate, mitred to its neighbours
-    const barrel = new T.CylinderGeometry(0.007, 0.007, A*CORE_S*0.4, 6, 1);                    // seam lock: a hinge barrel along the seam, axis on y
+    const HL = A*CORE_S*0.4, KR = 0.007, barrel = new T.CylinderGeometry(KR, KR, HL, 6, 1);    // seam lock: a hinge barrel along the seam, axis on y
+    // where the barrel sinks into the two plates' faces the fill hides its outline, so draw the collision edges: along each
+    // face the line where the barrel's surface meets it, and across each end the chord where the end cap meets it
+    const ring = [0,1,2,3,4,5].map(k => [KR*Math.sin(k*PI/3), KR*Math.cos(k*PI/3)]);               // the barrel's section in (x, z)
+    const hit = (dx, dz) => { let best = null;                                                      // where a ray from the axis leaves that section
+      for (let k = 0; k < 6; k++){ const [ax, az] = ring[k], [bx, bz] = ring[(k+1)%6], ex = bx-ax, ez = bz-az, det = dx*(-ez) - dz*(-ex);
+        const t = ((ax)*(-ez) - (az)*(-ex))/det, s = (dx*az - dz*ax)/det; if (t > 0 && s >= -1e-9 && s <= 1+1e-9) best = [dx*t, dz*t]; }
+      return best; };
     for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++){
       const sh = tiles[i].verts.filter(v => tiles[j].verts.some(x => x.distanceTo(v) < 1e-4)); if (sh.length !== 2) continue;
       const mid = sh[0].clone().add(sh[1]).multiplyScalar(0.5), y = sh[1].clone().sub(sh[0]).normalize(), z = mid.clone().normalize(), x = y.clone().cross(z);
-      const m = new T.Matrix4().makeBasis(x, y, z).setPosition(mid.multiplyScalar(CORE_S*out).setZ(mid.z + Z_CORE));
-      items.push([barrel, m, 40]); }
+      const base = mid.clone().multiplyScalar(CORE_S*out); base.z += Z_CORE;
+      items.push([barrel, new T.Matrix4().makeBasis(x, y, z).setPosition(base), 40]);
+      const seg = [], P = (px, py, pz) => base.clone().addScaledVector(x, px).addScaledVector(y, py).addScaledVector(z, pz);
+      [tiles[i], tiles[j]].forEach(t => {   // the plate's outer face leaves the seam towards the plate's centre
+        const c = t.c.clone().multiplyScalar(CORE_S*out); c.z += Z_CORE; c.sub(base); c.addScaledVector(y, -c.dot(y));
+        const h = hit(c.dot(x), c.dot(z)); if (!h) return;
+        for (const e of [-HL/2, HL/2]) seg.push(...P(0, e, 0).toArray(), ...P(h[0], e, h[1]).toArray());   // across the end
+        seg.push(...P(h[0], -HL/2, h[1]).toArray(), ...P(h[0], HL/2, h[1]).toArray()); });                  // along the face
+      items.push([new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(seg, 3)), null, 'lines']); }
     items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // the singularity's bound
     lump('core', 'Core', items);
   })();
@@ -476,10 +556,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // inside a solid. The hex faces of the shell sit FACE_IN from its centre; the core is the same shell at CORE_S.
   const FACE_IN = top.c.length(), Z_FRONT = FACE_IN, Z_AFT = -FACE_IN;      // back of the front tile, inside of the aft cap
   const Z_CORE_F = Z_CORE + CORE_S*FACE_IN, Z_CORE_A = Z_CORE - CORE_S*FACE_IN, REF_H = 0.12;
-  const axial = (key, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6)); o.position.z = (z0 + z1)/2; root.add(o); return o; };
+  const axial = (key, label, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6), { label }); o.position.z = (z0 + z1)/2; root.add(o); return o; };
   // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
-  axial('aft', 0.18, Z_AFT, Z_AFT + REF_H);
-  axial('rad', 0.05, Z_AFT + REF_H, Z_CORE_A - CORE_T/2);   // spine: isolation strut from the housing to the core, the capacitor cells stand round it
+  axial('aft', 'Inertial reference', 0.18, Z_AFT, Z_AFT + REF_H);
+  axial('rad', 'Spine', 0.05, Z_AFT + REF_H, Z_CORE_A - CORE_T/2);   // spine: isolation strut from the housing to the core, the capacitor cells stand round it
 
   // ---- capacitor bank ----
   // The core is small: it trickles power out, far too slowly to drive the array. So the craft stores it. Six hexagonal
@@ -498,7 +578,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // the cage, like the processor cluster's: a bus deck at each end, a strap round the middle, six rails at the corners
     for (const sg of [-1, 1]) items.push([slab(hex(0.43), [hex(0.05)], 0, DECK), at(0, 0, ZC + sg*top + (sg > 0 ? 0 : -DECK))]);   // hole cut to the spine
     items.push([slab(hex(0.43), [hex(0.4)], 0, 0.02), at(0, 0, ZC - 0.01)]);
-    hex(0.405).forEach(c => items.push([zCyl(0.011, 0.011, 2*top, 6), at(c.x, c.y, ZC), 40]));
+    hex(0.405).forEach(c => items.push([zCyl(0.011, 0.011, 2*(top + DECK), 6), at(c.x, c.y, ZC), 40]));   // through both decks, ending flush on their outer faces so the rail ends show, as the cluster's do
     lump('cap', 'Capacitor bank', items); })();
 
   // ---- shadow shield ----
@@ -553,12 +633,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     static get ear(){ return this.puck + EAR_OUT; }   // where the spokes land: the eyes of the ears on the face's corners
     static get shape(){                              // this type's parts, built on first use
       if (!Object.prototype.hasOwnProperty.call(this, '_shape')) {
-        const z = PUCK_H/2 + 0.001, rIn = 0.8*this.puck, pitch = 0.05, s3 = Math.sqrt(3);
+        const z = PUCK_H/2 + 0.001, rIn = 0.8*this.puck, pitch = DOT_PITCH, s3 = Math.sqrt(3);
         const corners = [0, 1, 2, 3, 4].map(k => pentCorner(k, rIn));
         const inside = (x, y) => corners.every((a, k) => { const b = corners[(k + 1) % 5]; return (b.x - a.x)*(y - a.y) - (b.y - a.y)*(x - a.x) >= 0; });
         const dots = [];   // stand-in for the transducer elements, on the same kind of lattice as the tiles
         for (let j = -8; j <= 8; j++) for (let i = -8; i <= 8; i++){
-          const x = (i + (j & 1 ? 0.5 : 0))*pitch, y = j*pitch*s3/2;
+          const u = (i + (j & 1 ? 0.5 : 0))*pitch, v = j*pitch*s3/2, c = Math.cos(PI/6), s = Math.sin(PI/6);   // the lattice turned 30 deg, so its rows run parallel to the face's edge opposite corner 0, as the tiles' do to theirs
+          const x = u*c - v*s, y = u*s + v*c;
           if (inside(x, y)) dots.push(new V3(x, y, z + 0.001));
         }
         this._shape = {
@@ -590,7 +671,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     constructor(used){
       super();
       const H = this.kind = this.constructor, s = H.shape, add = (n, geo, z) => {
-        const p = part(H.key, geo, { name:`${H.label} ${n}` }); p.position.z = z; this.add(p); return p; };
+        const p = part(H.key, geo, { part:`${H.label} ${n}`, label:n[0].toUpperCase() + n.slice(1), owner:this }); p.position.z = z; this.add(p); return p; };
       this.name = H.label + (hornCount[H.label] = (hornCount[H.label] || 0) + 1);   // Horn A1 .. A6, Horn B1 .. B6
       // the back of the body sits at the horn's origin, the face looks down +z
       add('body', s.body, H.depth/2);
@@ -600,7 +681,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const ap = H.body*Math.cos(PI/5);
       for (let k = 0; k < 5; k++){ const a = (k + 0.5)*2*PI/5, n = new V3(Math.cos(a), Math.sin(a), 0), t = new V3(-n.y, n.x, 0);
         const base = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(t.clone().negate(), new V3(0, 0, -1), n));
-        for (let row = 0; row < SCALE_ROWS; row++){ const sc = part(H.key, s.scale, { name:`${H.label} scale` });
+        for (let row = 0; row < SCALE_ROWS; row++){ const sc = part(H.key, s.scale, { part:`${H.label} scale`, label:`Scale, side ${k + 1} row ${row + 1}`, owner:this });
           sc.position.copy(n).multiplyScalar(ap).setZ(H.depth*(0.96 - row*0.92/SCALE_ROWS)); this.add(sc); scales.push({ sc, base, row }); } }
       const face = add('face', H.eared(used), H.reach + PUCK_H/2);
       face.add(new T.Line(s.inset, lineMat(H.key)), new T.Points(s.dots, dotMat));
@@ -702,7 +783,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const d = a.f.verts[a.k].clone().sub(C); d.addScaledVector(n0, -d.dot(n0));
       if (!e1) e1 = d.clone().normalize();
       const e2 = new V3().crossVectors(n0, e1), vi = (Math.round(Math.atan2(d.dot(e2), d.dot(e1))/(2*PI/5)) % 5 + 5) % 5;
-      w.anchors.push({ f:a.f, loc:a.loc, vi }); a.f.addEar(a.k);
+      w.anchors.push({ f:a.f, k:a.k, loc:a.loc, vi }); a.f.addEar(a.k);
     });
     w.obj = new T.Group(); const usedCorners = new Set(w.anchors.map(an => an.vi)); w.horn = vib ? new HornA(usedCorners) : new HornB(usedCorners);
     w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.ear = w.horn.kind.ear; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
@@ -712,14 +793,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // the four ends: the horn's face has a rim of its own, just like the tile. The fibre runs on through
     // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
     // so each horn has several paths home: lose one and the signal takes another.
-    const ball = (parent, p) => { const b = part('web', ballGeo, { name:'Ball joint' }); b.position.copy(p); parent.add(b); };
+    // named by where they are: the horn they serve, the tile corner or face corner they sit on, front (+z) or back
+    const side = s => s ? 'front' : 'back', at = an => `${an.f.name} corner ${an.k + 1}`;
+    const ball = (parent, p, label) => { const b = part('web', ballGeo, { part:'Ball joint', label:'Ball joint, ' + label, owner:w.horn }); b.position.copy(p); parent.add(b); };
     w.anchors.forEach(an => {
       for (let s = 0; s < 2; s++){
-        const sp = part('web', spokeGeo, { name:'Spoke' }); w.wires.push(sp); root.add(sp);
-        ball(an.f.obj, an.loc.clone().setZ(s ? MOUNT.EAR_Z : -MOUNT.EAR_Z));
+        const sp = part('web', spokeGeo, { part:'Spoke', label:`Spoke, ${at(an)} to face corner ${an.vi + 1}, ${side(s)}`, owner:w.horn }); w.wires.push(sp); root.add(sp);
+        ball(an.f.obj, an.loc.clone().setZ(s ? MOUNT.EAR_Z : -MOUNT.EAR_Z), `${at(an)}, ${side(s)}`);
       }
     });
-    new Set(w.anchors.map(an => an.vi)).forEach(vi => { for (const z of [-EAR_UP, PUCK_H + EAR_UP]) ball(w.horn, pentCorner(vi, w.ear).setZ(w.horn.reach + z)); });
+    new Set(w.anchors.map(an => an.vi)).forEach(vi => { [-EAR_UP, PUCK_H + EAR_UP].forEach((z, s) => ball(w.horn, pentCorner(vi, w.ear).setZ(w.horn.reach + z), `face corner ${vi + 1}, ${side(s)}`)); });
     return w;
   });
 
@@ -774,22 +857,32 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const hingeGeo = zCyl(0.007, 0.007, 0.24, 6);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
   order.forEach(f => { if (!f.par) return;
     const inv = f.qs.clone().invert();
-    const h = part('hinge', hingeGeo, { angle:50 });
+    const h = part('hinge', hingeGeo, { angle:50, part:'Hinge pin', label:'Hinge pin to ' + f.par.name, owner:f });
     h.position.copy(f.hP).sub(f.ps).applyQuaternion(inv);
     h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
     f.obj.add(h);
   });
-  axial('hinge', 0.13, Z_FRONT - 0.03, Z_FRONT);   // its flange, closing the opening in the front tile's delta frame
-  axial('hinge', 0.04, Z_CORE_F + CORE_T/2, Z_FRONT - 0.03);   // centre mast: core to the back of the front tile. Every signal comes home through it
+  axial('hinge', 'Mast flange', 0.13, Z_FRONT - 0.03, Z_FRONT);   // its flange, closing the opening in the front tile's delta frame
+  axial('hinge', 'Centre mast', 0.04, Z_CORE_F + CORE_T/2, Z_FRONT - 0.03);   // centre mast: core to the back of the front tile. Every signal comes home through it
+
+  // full names, now that tiles and horns have theirs; the lookup the viewer selects by
+  const named = new Map();
+  root.traverse(o => { if (!o.isMesh) return;
+    o.name = (o.owner ? o.owner.name + ' / ' : '') + o.userData.label;
+    if (named.has(o.name)) console.warn('two parts named', o.name);
+    named.set(o.name, o); });
 
   // ---- renderer, camera, controls ----
   const renderer = new T.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const camera = new T.PerspectiveCamera(32, 1, 0.1, 200);
   const controls = new T.OrbitControls(camera, canvas);
-  controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 2.5; controls.maxDistance = 40;
+  controls.enableDamping = true; controls.dampingFactor = 0.1; controls.minDistance = 0.05; controls.maxDistance = 80;   // close enough to orbit a ball joint
+  let homeD = 22;   // the opening distance, where the dots are full size
   function resetView(){
+    setFly(false); tween = null;
     const asp = view.clientWidth/Math.max(1, view.clientHeight), d = 22/Math.min(1, asp*0.95);
+    homeD = d;
     camera.position.set(0.55, 0.36, 0.75).normalize().multiplyScalar(d);
     controls.target.set(0, 0, 0.5); controls.update();
   }
@@ -799,6 +892,137 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   }
   new ResizeObserver(resize).observe(view);
 
+  // ---- camera: orbit (the default) or free ----
+  // Free is a fly camera: WASD to move, Q/E down/up, drag to look, right-drag to slide, scroll to push forward, Shift
+  // for speed. It flies faster far out and slower among the parts. Leaving it orbits a point the same distance ahead
+  // as the pivot was, so the view does not jump. Double-click anything to orbit round that point.
+  const CENTRE = new V3(0, 0, 0.5), look = new T.Euler(0, 0, 0, 'YXZ'), vel = new V3(), want = new V3(), keys = new Set();
+  let fly = false, flyD = 22, tween = null, fast = false;
+  const hint = document.getElementById('hint');
+  function setFly(on){
+    if (fly !== on){ fly = on; controls.enabled = !on; vel.set(0, 0, 0); keys.clear();
+      if (on){ flyD = camera.position.distanceTo(controls.target); look.setFromQuaternion(camera.quaternion, 'YXZ'); look.z = 0; }
+      else { controls.target.copy(camera.position).add(tmp.set(0, 0, -1).applyQuaternion(camera.quaternion).multiplyScalar(Math.min(flyD, 60))); controls.update(); } }
+    document.querySelectorAll('[data-cam]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.cam === 'free') === fly)));
+    hint.textContent = fly ? 'WASD: move · Q / E: down / up · drag: look · right-drag: slide · scroll: forward · shift: fast · F: orbit'
+      : 'drag: rotate · scroll: zoom · right-drag: pan · double-click: orbit there · click: name a part · F or WASD: free camera';
+  }
+  function orbitAbout(p){ setFly(false); tween = { from:controls.target.clone(), to:p.clone(), u:0 }; }
+  const flySpeed = () => Math.min(6, Math.max(0.25, 0.25*camera.position.distanceTo(CENTRE)))*(fast ? 4 : 1);   // m/s
+  const turn = (dx, dy) => { look.y -= dx*0.003; look.x = Math.max(-1.55, Math.min(1.55, look.x - dy*0.003)); camera.quaternion.setFromEuler(look); };
+  const slide = (dx, dy) => { const k = flySpeed()*0.003;
+    camera.position.addScaledVector(tmp.set(1, 0, 0).applyQuaternion(camera.quaternion), -dx*k).addScaledVector(tmp.set(0, 1, 0).applyQuaternion(camera.quaternion), dy*k); };
+  const push = d => camera.position.addScaledVector(tmp.set(0, 0, -1).applyQuaternion(camera.quaternion), d);
+  document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => setFly(b.dataset.cam === 'free')));
+  const typing = e => e.target.closest && e.target.closest('input:not([type=range]), textarea, select, [contenteditable]');
+  addEventListener('keydown', e => {
+    fast = e.shiftKey; if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') select(null);
+    else if (k === 'f') setFly(!fly);
+    else if ('wasdqe'.includes(k) && k.length === 1){
+      if (!fly && k !== 'q' && k !== 'e') setFly(true);
+      if (fly){ keys.add(k); e.preventDefault(); } }
+  });
+  addEventListener('keyup', e => { fast = e.shiftKey; keys.delete(e.key.toLowerCase()); });
+  addEventListener('blur', () => keys.clear());
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', e => { if (!fly) return; e.preventDefault(); push(-Math.sign(e.deltaY)*0.15*flySpeed()); }, { passive:false });
+  function flyStep(dt){
+    want.set((keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0), 0, (keys.has('s') ? 1 : 0) - (keys.has('w') ? 1 : 0));
+    if (want.lengthSq()) want.normalize().applyQuaternion(camera.quaternion);
+    want.y += (keys.has('e') ? 1 : 0) - (keys.has('q') ? 1 : 0);   // straight up and down, whichever way the camera looks
+    want.multiplyScalar(flySpeed());
+    vel.lerp(want, 1 - Math.exp(-dt*12)); camera.position.addScaledVector(vel, dt);
+  }
+
+  // ---- picking: click a part to name it, double-click to orbit round it ----
+  // The selection stays until another part is clicked, Esc or Clear, and is kept in the address (#part=...) and in this
+  // browser, so a reload comes back to it. Names are the stable ones above, so a saved selection finds its part again.
+  const pickables = []; root.traverse(o => { if (o.isMesh) pickables.push(o); });
+  const ray = new T.Raycaster(), ndc = new T.Vector2();
+  const shown = o => { for (let a = o; a; a = a.parent) if (!a.visible) return false; return true; };
+  function pick(x, y){
+    const r = canvas.getBoundingClientRect(); ndc.set((x - r.left)/r.width*2 - 1, -(y - r.top)/r.height*2 + 1);
+    ray.setFromCamera(ndc, camera);
+    for (const h of ray.intersectObjects(pickables, false)) if (shown(h.object)) return h;
+    return null;
+  }
+  const selFill = fillMat.clone();
+  const selLine = new T.LineSegments(new T.BufferGeometry(), new T.LineBasicMaterial());
+  const selGhost = new T.LineSegments(new T.BufferGeometry(), new T.LineBasicMaterial({ transparent:true, opacity:0.35, depthTest:false, depthWrite:false }));   // seen through whatever is in front
+  [selLine, selGhost].forEach(l => { l.matrixAutoUpdate = false; l.visible = false; l.renderOrder = 10; scene.add(l); });
+  let sel = null; const selAt = new V3(), pinAt = new V3();
+  const $ = id => document.getElementById(id), tip = $('tip'), pin = $('pin');
+  const kindOf = m => (PARTS.find(p => p[0] === m.userData.key) || [, ''])[1];
+  function select(m, point){
+    if (sel) sel.material = fillMat;
+    sel = m || null;
+    if (sel){
+      sel.material = selFill;
+      selLine.geometry = selGhost.geometry = sel.edges ? sel.edges.geometry : outline(sel.geometry, 20);
+      if (point) selAt.copy(sel.worldToLocal(point.clone()));
+      else { sel.geometry.computeBoundingSphere(); selAt.copy(sel.geometry.boundingSphere.center); }
+      $('sel-name').textContent = $('pin-name').textContent = sel.name; $('sel-kind').textContent = kindOf(sel);
+    }
+    selLine.visible = selGhost.visible = !!sel; pin.hidden = !sel;
+    $('sel-none').hidden = !!sel; $('sel-body').hidden = !sel;
+    try { history.replaceState(null, '', location.pathname + location.search + (sel ? '#part=' + encodeURIComponent(sel.name) : '')); } catch(e){}
+    try { localStorage.setItem('specter.part', sel ? sel.name : ''); } catch(e){}
+  }
+  $('sel-clear').addEventListener('click', () => select(null));
+  $('sel-orbit').addEventListener('click', () => { if (sel) orbitAbout(selAt.clone().applyMatrix4(sel.matrixWorld)); });
+  $('sel-copy').addEventListener('click', () => { if (!sel) return; const b = $('sel-copy');
+    navigator.clipboard.writeText(sel.name).then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy name'; }, 1200); }, () => {}); });
+  // pointers: a press that does not travel is a click; in free mode drags turn and slide the camera, two fingers pinch and slide
+  const ptrs = new Map(); let press = null, hoverAt = null;
+  canvas.addEventListener('pointerdown', e => {
+    ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    press = ptrs.size === 1 ? { x:e.clientX, y:e.clientY, moved:false } : null;
+    if (fly){ canvas.setPointerCapture(e.pointerId); e.preventDefault(); }
+    tip.hidden = true;
+  });
+  addEventListener('pointermove', e => {
+    if (e.target === canvas && !ptrs.size) hoverAt = { x:e.clientX, y:e.clientY };
+    const p = ptrs.get(e.pointerId); if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) press.moved = true;
+    if (fly){
+      if (ptrs.size === 1){ if (e.buttons & 2) slide(dx, dy); else turn(dx, dy); }
+      else if (ptrs.size === 2){ const [a, b] = [...ptrs.values()], o = a === p ? b : a;
+        const d0 = Math.hypot(p.x - o.x, p.y - o.y), d1 = Math.hypot(e.clientX - o.x, e.clientY - o.y);
+        push((d1 - d0)*0.01*flySpeed()); slide(dx/2, dy/2); }
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  });
+  const release = e => {
+    if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId);
+    if (e.type === 'pointerup' && press && !press.moved && e.button === 0){ const h = pick(e.clientX, e.clientY); if (h) select(h.object, h.point); }
+    press = null;
+  };
+  addEventListener('pointerup', release); addEventListener('pointercancel', release);
+  canvas.addEventListener('pointerleave', () => { hoverAt = null; tip.hidden = true; });
+  canvas.addEventListener('dblclick', e => { const h = pick(e.clientX, e.clientY); if (h) orbitAbout(h.point); });
+  // hover: name what is under the cursor, once a frame at most
+  function hover(){
+    if (!hoverAt || ptrs.size){ canvas.style.cursor = ''; return; }
+    const h = pick(hoverAt.x, hoverAt.y), r = view.getBoundingClientRect();
+    canvas.style.cursor = h ? 'pointer' : fly ? 'crosshair' : '';
+    tip.hidden = !h || h.object === sel;
+    if (!tip.hidden){ tip.textContent = h.object.name;
+      const x = Math.min(hoverAt.x - r.left + 14, r.width - tip.offsetWidth - 8);
+      tip.style.transform = `translate(${x}px, ${hoverAt.y - r.top + 16}px)`; }
+    hoverAt = null;
+  }
+  // the pin rides on the selected part through the unfold
+  function placePin(){
+    if (!sel) return;
+    selLine.matrix.copy(sel.matrixWorld); selGhost.matrix.copy(sel.matrixWorld);
+    pinAt.copy(selAt).applyMatrix4(sel.matrixWorld).project(camera);
+    const off = pinAt.z > 1 || Math.abs(pinAt.x) > 1 || Math.abs(pinAt.y) > 1; pin.hidden = off;
+    if (!off) pin.style.transform = `translate(${(pinAt.x + 1)/2*view.clientWidth}px, ${(1 - pinAt.y)/2*view.clientHeight}px)`;
+  }
+
   // ---- theme ----
   let highlight = null;
   function paint(){
@@ -806,6 +1030,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     renderer.setClearColor(new T.Color(c('--bg')));
     fillMat.color.set(c('--fill')); dotMat.color.set(c('--dot')); beamMat.color.set(c('--accent'));
     for (const k in lineMats) lineMats[k].color.set(!highlight ? c('--line') : k === highlight ? c('--accent') : c('--dim'));
+    selFill.color.set(c('--fill')).lerp(new T.Color(c('--accent')), 0.22);
+    selLine.material.color.set(c('--accent')); selGhost.material.color.set(c('--accent'));
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
   new MutationObserver(paint).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
@@ -832,7 +1058,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   PARTS.forEach(([k, name, desc]) => {
     const li = document.createElement('li'), b = document.createElement('button');
     b.type = 'button'; b.id = 'part-' + k; b.setAttribute('aria-pressed', 'false');
-    b.innerHTML = '<b></b><span></span>'; b.firstChild.textContent = name; b.lastChild.textContent = desc;
+    b.textContent = name; b.title = desc;   // the long story is a tooltip, not a wall of text
     b.addEventListener('click', () => {
       highlight = highlight === k ? null : k;
       list.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b && !!highlight)));
@@ -860,6 +1086,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // stowed: the furthest panel corner from the shell centre
   document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, PL_R)).toFixed(1) + ' m';
   resize(); resetView(); paint();
+  // come back to the part selected last time: the address first, then this browser's memory
+  { let saved = null;
+    try { const m = location.hash.match(/^#part=(.+)$/); saved = m ? decodeURIComponent(m[1]) : localStorage.getItem('specter.part'); } catch(e){}
+    if (saved && named.has(saved)) select(named.get(saved)); }
   let last = performance.now();
   (function loop(now){
     const dt = Math.min(0.05, (now - last)/1000); last = now;
@@ -868,7 +1098,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // the face: a second and a bit from flat to full dish. Concave to convex goes through flat, easing to rest there
     if (kappa !== kappaGoal) kappa = kappaGoal > kappa ? Math.min(kappaGoal, kappa + dt/1.3) : Math.max(kappaGoal, kappa - dt/1.3);
     pose(t); setScales(still.matches ? 0 : now/1000);   // the horns' scales breathe, unless the reader asked for no motion
-    controls.update(); renderer.render(scene, camera);
+    if (tween){ tween.u = Math.min(1, tween.u + dt/0.35); controls.target.lerpVectors(tween.from, tween.to, ss(tween.u)); if (tween.u >= 1) tween = null; }
+    if (fly) flyStep(dt); else controls.update();
+    // the near plane follows the camera in, so a close look at a ball joint is not cut off
+    const dC = camera.position.distanceTo(fly ? CENTRE : controls.target), near = Math.min(0.1, Math.max(0.005, (fly ? 0.004 : 0.01)*dC));
+    if (Math.abs(near/camera.near - 1) > 0.05){ camera.near = near; camera.updateProjectionMatrix(); }
+    // dots keep their size up to the opening zoom, and shrink once the view pulls back, so they stop crowding into dark mass
+    if (!dotMat.userData.fixed) dotMat.size = Math.max(1, 2.2*Math.min(1, homeD/dC));
+    scene.updateMatrixWorld(); camera.updateMatrixWorld(); placePin(); hover();
+    renderer.render(scene, camera);
     requestAnimationFrame(loop);
   })(last);
 })();

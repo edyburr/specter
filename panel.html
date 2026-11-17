@@ -59,7 +59,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   .hud{justify-content:flex-end}
   .block{flex:1 1 auto;border-left:0;border-top:1px solid var(--rule)}
 }
+:root[data-theme="cad"]{
+  --bg:#fff; --sheet:#fff; --ink:#000; --muted:#444; --rule:#000;
+  --line:#000; --dim:#d4d4d4; --fill:#fff; --dot:#000; --accent:#d00000; --ok:#1a6b36; color-scheme:light }
 </style>
+<script>
+/* CAD theme (white sheet, black edges): open with ?theme=cad, press T to toggle; remembered per browser. */
+(()=>{ const root = document.documentElement; let t = null;
+  try { t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('theme'); } catch(e){}
+  if (t === 'cad') root.dataset.theme = 'cad';
+  addEventListener('keydown', e => { if (e.key !== 't' && e.key !== 'T' || e.ctrlKey || e.metaKey || e.altKey || /input|textarea|select/i.test(e.target.tagName)) return;
+    const on = root.dataset.theme !== 'cad'; if (on) root.dataset.theme = 'cad'; else delete root.dataset.theme;
+    try { localStorage.setItem('theme', on ? 'cad' : ''); } catch(e){} });
+})();
+</script>
 
 <div class="app">
   <div class="view" id="view">

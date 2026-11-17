@@ -1,5 +1,5 @@
 # Turns the Orchid glTF from render_orchid.js into a ready-to-open .blend: the model with its unfold animation,
-# a camera, a sun and a grey studio world, frame range set to the animation.
+# a camera, a sun and a white world, frame range set to the animation.
 #   blender -b --factory-startup --python tools/make_blend.py -- blender/specter-orchid.glb blender/specter-orchid.blend
 import sys, math
 import bpy
@@ -11,11 +11,12 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 bpy.ops.import_scene.gltf(filepath=src)
 
-# Parts of one class share one mesh (all 19 tiles, the 6 flares of each horn type, ...), but glTF carries no mesh
-# names, so name each mesh after the objects that use it: 'Horn A flare', not 'Mesh_9'.
+# Every object arrives with the page's stable name ('Tile 07 / Actuator rod 3'), the same on every export. Parts of one
+# class share one mesh (all 19 panels, the 6 faces of each horn type, ...), but glTF carries no mesh names, so name
+# each mesh after its class, which the page exports as the custom property 'part': 'Horn A face', not 'Mesh_9'.
 for me in bpy.data.meshes:
-    users = sorted(ob.name for ob in scene.objects if ob.data == me)
-    if users: me.name = users[0].split('.')[0]
+    users = sorted((ob for ob in scene.objects if ob.data == me), key=lambda ob: ob.name)
+    if users: me.name = users[0].get('part') or users[0].name.split('.')[0]
 
 # frame range from the imported actions
 end = 1
@@ -47,9 +48,28 @@ sun = bpy.data.objects.new('Sun', sun_data); scene.collection.objects.link(sun)
 sun.rotation_euler = (math.radians(50), math.radians(10), math.radians(30))
 
 world = bpy.data.worlds.new('Studio'); world.use_nodes = True
-world.node_tree.nodes['Background'].inputs['Color'].default_value = (0.05, 0.05, 0.055, 1)
-world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.6
+world.node_tree.nodes['Background'].inputs['Color'].default_value = (1, 1, 1, 1)   # a white sheet, so the black lines read as a drawing
+world.node_tree.nodes['Background'].inputs['Strength'].default_value = 1.0
 scene.world = world
+
+# Look of the drawings: every surface plain white, flat (an emission, so no light or shadow changes it), and black
+# Freestyle lines on the outline and on every crease sharper than 20 degrees, as the page and the renders draw them.
+for m in bpy.data.materials:
+    m.use_nodes = True
+    nt = m.node_tree; nt.nodes.clear()
+    em = nt.nodes.new('ShaderNodeEmission'); em.inputs['Color'].default_value = (1, 1, 1, 1); em.inputs['Strength'].default_value = 1.0
+    o = nt.nodes.new('ShaderNodeOutputMaterial'); nt.links.new(em.outputs['Emission'], o.inputs['Surface'])
+    m.diffuse_color = (1, 1, 1, 1)
+scene.render.use_freestyle = True
+scene.render.line_thickness_mode = 'ABSOLUTE'; scene.render.line_thickness = 1.0
+vl = bpy.context.view_layer; vl.use_freestyle = True
+fs = vl.freestyle_settings; fs.crease_angle = math.radians(20)
+ls = fs.linesets[0] if fs.linesets else fs.linesets.new('Edges')
+ls.select_silhouette = ls.select_border = ls.select_crease = True
+ls.select_by_visibility = True; ls.visibility = 'VISIBLE'
+if ls.linestyle is None: ls.linestyle = bpy.data.linestyles.new('Black')
+ls.linestyle.color = (0, 0, 0); ls.linestyle.thickness = 1.5; ls.linestyle.alpha = 1.0
+scene.view_settings.view_transform = 'Standard'   # white stays white
 
 scene.frame_set(0)
 bpy.ops.wm.save_as_mainfile(filepath=out)
