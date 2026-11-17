@@ -342,12 +342,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const armWindows = BASE.map(c => { const u = dir2(c), t = dir2(c + PI/2), at = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s), { hw, ro, ri, k } = WIN;
       return [at(ri + WIN_KI, -hw), at(ro - k, -hw), at(ro, -hw + k), at(ro, hw - k), at(ro - k, hw), at(ri + WIN_KI, hw), at(ri, hw - WIN_KI), at(ri, -hw + WIN_KI)]; });
     delta.push([slab(deltaOut, [hexPts(DL_HOLE), ...armWindows], ZB, FR_TH)]);
-    // half a hinge opposite each arm: lug, barrel on the hinge axis (the shell's edge), drive beyond it. The neighbour's half
-    // lands on the other side of the centre line, so the two interleave on one pin.
-    const lug = upright([[RING_O, ZB], [AP, ZB - HG_R], [AP, ZB + HG_R], [RING_O, ZT]], HG_T0, HG_T1);
-    const barrel = new T.CylinderGeometry(HG_R, HG_R, HG_T1 - HG_T0, 6).translate(AP, (HG_T0 + HG_T1)/2, ZB);
+    // half a hinge opposite each arm: lug and barrel on the hinge axis (the shell's edge), drive beyond it. The neighbour's half
+    // lands on the other side of the centre line, so the two interleave on one pin. Lug and barrel are one piece, a
+    // knuckle: its section is the lug running from the ring into the hex barrel round the axis, so no seam crosses its ends.
+    const HG_H = HG_R*Math.sqrt(3)/2;   // the barrel's hex, corner up: half its width
+    const knuckle = upright([[RING_O, ZB], [AP - HG_H, ZB - HG_R/2], [AP, ZB - HG_R], [AP + HG_H, ZB - HG_R/2], [AP + HG_H, ZB + HG_R/2], [AP, ZB + HG_R], [RING_O, ZT]], HG_T0, HG_T1);
     const drive = new T.CylinderGeometry(MOT_R, MOT_R, MOT_L, 6).translate(AP, HG_T1 + MOT_L/2, ZB);
-    BASE.forEach(c => { const m = M4().makeRotationZ(c); frame.push([lug, m], [barrel, m, 40], [drive, m, 40]); });
+    BASE.forEach(c => { const m = M4().makeRotationZ(c); frame.push([knuckle, m], [drive, m, 40]); });
     // the panel's isogrid: its nodes, and the node nearest a point
     const gridNode = (i, j) => new V3((i + j/2)*GS, j*GS*S3/2, 0), inHex = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= GRID_N;
     const snap = q => { let best = null, bd = Infinity; const j0 = Math.round(q.y/(GS*S3/2));
