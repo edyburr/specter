@@ -27,7 +27,7 @@ The page shows the name when you click a part, and the Blender objects carry the
 
 In Blender, parts of one class share one mesh, named after the class (the `part` custom property on each object): every tile is a frame (ring, delta frame, hinge halves, fused), a panel (with its whiffles), a set of
 six actuator brackets and six shafts, and all 20 frames share one mesh, as do all panels, all bracket sets and all shafts, each horn type's body and face are
-one mesh used six times (`Horn A face`, ...), and all 114 spokes and every ball joint share one mesh each. Edit the
+one mesh used six times (`Horn A face`, ...), and all 114 spokes, every swivel arm and every spoke end link share one mesh each. Edit the
 mesh once and every copy follows. Each spoke is one straight piece that the animation stretches as it telescopes.
 
 The version with carriages, boom-tip and tile-stalk horn mounts, and `render.js` is tagged `backup/all-mechanisms`.
