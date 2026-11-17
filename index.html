@@ -290,7 +290,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // Three layers. The fold frame: a hexagonal ring on the tile's outline, the raceway for power and fibre, with half a
   // hinge on each side that faces a tile and spoke ears beside its corners. It hinges, snaps flat, and never moves again.
   // The delta backplane: a hexagon with three arms, nested in the ring and pushed straight out of it by three lift
-  // actuators, one on each side between the arms; it carries three launch-lock posts and six actuator brackets.
+  // actuators, one on each side between the arms; it carries six actuator brackets.
   // The panel: face sheet on an isogrid, three whiffles under it, tipped by the six actuator shafts.
   // So: the lifts set how far forward a panel stands, the six set which way it faces.
   // Everything of one kind is fused into one shape.
@@ -309,9 +309,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2, WH_M = 0.02, SOCK_H = 0.007;   // whiffles
     const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // actuators
     const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06, MOT_R = 0.02, MOT_L = 0.045;   // hinge halves: barrel, lug span off the centre line, drive
-    const LOCK = 0.025, LOCK_R = 0.14;                      // launch locks: how far short of the panel they stop; where they stand
 
-    // ---- frame: ring, delta frame, hinge halves, launch locks ----
+    // ---- frame: ring, delta frame, hinge halves ----
     const frame = [];
     // The fold frame is the ring: it hinges, and snaps flat. The delta's arms and their actuators take the three sides
     // that face other tiles, so the lifts take the other three, between the arms. From each of those sides a tongue, half
@@ -348,15 +347,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const barrel = new T.CylinderGeometry(HG_R, HG_R, HG_T1 - HG_T0, 6).translate(AP, (HG_T0 + HG_T1)/2, ZB);
     const drive = new T.CylinderGeometry(MOT_R, MOT_R, MOT_L, 6).translate(AP, HG_T1 + MOT_L/2, ZB);
     BASE.forEach(c => { const m = M4().makeRotationZ(c); frame.push([lug, m], [barrel, m, 40], [drive, m, 40]); });
-    // launch locks: tapered posts between the arms; for launch the actuators pull the panel down onto them
+    // the panel's isogrid: its nodes, and the node nearest a point
     const gridNode = (i, j) => new V3((i + j/2)*GS, j*GS*S3/2, 0), inHex = (i, j) => Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) <= GRID_N;
     const snap = q => { let best = null, bd = Infinity; const j0 = Math.round(q.y/(GS*S3/2));
       for (let j = j0 - 1; j <= j0 + 1; j++){ const i0 = Math.round(q.x/GS - j/2);
         for (let i = i0 - 1; i <= i0 + 1; i++) if (inHex(i, j)){ const n = gridNode(i, j), d = Math.hypot(n.x - q.x, n.y - q.y); if (d < bd){ bd = d; best = n; } } }
       return best; };
-    const zPB = Z_PL + PB, postH = zPB - LOCK - 0.004 - ZT;   // panel back in the frame's coordinates
-    [90, 210, 330].forEach(x => { const q = snap(dir3(x*deg, LOCK_R)), m = move(q.x, q.y, 0);
-      delta.push([zCyl(0.007, 0.015, postH, 6).translate(0, 0, ZT + postH/2), m, 40], [zCyl(0.013, 0.009, 0.004, 6).translate(0, 0, zPB - LOCK - 0.002), m, 40]); });
+    const zPB = Z_PL + PB;   // panel back in the frame's coordinates
 
     // ---- actuators: a ∪ bracket under the arm with a cylinder upright in it (fixed), and a shaft up through the arm's window ----
     const act = [], legs = [], rAct = (WIN.ri + WIN.ro)/2, xLeg = (WIN.ro - WIN.ri)/2;
@@ -386,11 +383,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     sockets.forEach(p => { panel.push([zCyl(0.015, 0.015, sockH, 6), move(p.x, p.y, PB - H_W - sockH/2), 40], [new T.IcosahedronGeometry(BALL, 0), move(p.x, p.y, p.z), 1]); });
     const pf = fuse(panel);
     // The ribs are a coarse isogrid, every other line, so the back reads as structure and not as a dark mat. Wherever
-    // something bolts on behind the panel (a whiffle foot, a socket, a launch lock) the full fine grid stays under it.
+    // something bolts on behind the panel (a whiffle foot, a socket) the full fine grid stays under it.
     const pins = [];
     BASE.forEach(c => { const u = dir3(c, 1), t = dir3(c + PI/2, 1), loc = (r, s) => u.clone().multiplyScalar(r).addScaledVector(t, s);
       [loc(WH_R1, 0), loc(WH_R2, GS/2), loc(WH_R2, -GS/2)].forEach(q => pins.push(snap(q))); });
-    sockets.forEach(p => pins.push(snap(p))); [90, 210, 330].forEach(x => pins.push(snap(dir3(x*deg, LOCK_R))));
+    sockets.forEach(p => pins.push(snap(p)));
     const pinned = n => pins.some(q => Math.hypot(q.x - n.x, q.y - n.y) < GS*1.01);   // the node or a neighbour of it holds a part
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
@@ -1040,9 +1037,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const PARTS = [
     ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and a spoke ear beside each corner a horn\'s spokes land on. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
-    ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel, its six actuators and three launch-lock posts, and rides straight out of the ring on the lifts.'],
+    ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel and its six actuators, and rides straight out of the ring on the lifts.'],
     ['lift',  'Lift actuators ×57', 'Three per tile, on the three sides between the delta\'s arms, each on a tongue reaching in from the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
-    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They only aim: they tip the panel to the dish\'s slope, seat it on its locks for launch and lift it off in orbit.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a ball under a whiffle. They only aim: they tip the panel to the dish\'s slope.'],
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],

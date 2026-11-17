@@ -25,7 +25,7 @@ Every part has a name that stays the same on every run and in every export, buil
 Tiles are numbered in unfold order (Tile 01 is the front tile), corners 1-6 round the tile and 1-5 round a horn face.
 The page shows the name when you click a part, and the Blender objects carry the same names.
 
-In Blender, parts of one class share one mesh, named after the class (the `part` custom property on each object): every tile is a frame (ring, delta frame, hinge halves and launch locks, fused), a panel (with its whiffles), a set of
+In Blender, parts of one class share one mesh, named after the class (the `part` custom property on each object): every tile is a frame (ring, delta frame, hinge halves, fused), a panel (with its whiffles), a set of
 six actuator brackets and six shafts, and all 20 frames share one mesh, as do all panels, all bracket sets and all shafts, each horn type's body and face are
 one mesh used six times (`Horn A face`, ...), and all 114 spokes and every ball joint share one mesh each. Edit the
 mesh once and every copy follows. Each spoke is one straight piece that the animation stretches as it telescopes.
