@@ -269,7 +269,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     items.forEach(([geo, m, angle]) => { if (angle === 'lines'){ for (const v of geo.attributes.position.array) edge.push(v); return; }   // ready-made line segments
       const g = geo.index ? geo.toNonIndexed() : geo.clone(); if (m) g.applyMatrix4(m);
       for (const v of g.attributes.position.array) pos.push(v);
-      for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });
+      if (angle !== 'solid') for (const v of new T.EdgesGeometry(g, angle || 20).attributes.position.array) edge.push(v); });   // 'solid': its outline is drawn by another item
     return { pos, edge }; };
   const done = f => { const solid = new T.BufferGeometry(), lines = new T.BufferGeometry();
     solid.setAttribute('position', new T.Float32BufferAttribute(f.pos, 3)); solid.computeVertexNormals();
@@ -367,7 +367,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       act.push([uGeo(sg), m], [cyl, m, 40], [hub, m, 40]); legs.push({ b, p }); sockets.push(p); }));
 
     // ---- panel: face sheet, isogrid ribs, whiffles with their feet and ball sockets ----
-    const panel = [[hexPrism(PL_R, FS_TH), move(0, 0, PL_TH/2 - FS_TH/2)]];
+    // the face sheet, outlined with the rim ribs under it as one slab: the panel's side reads as one wall, no seam
+    const panel = [[hexPrism(PL_R, FS_TH), move(0, 0, PL_TH/2 - FS_TH/2), 'solid'], [new T.EdgesGeometry(hexPrism(PL_R, PL_TH)), null, 'lines']];
     // A whiffle is a trapezoid, narrow end toward the panel's centre, centred along its length on its pair of actuators,
     // with the two corners of its wide base cut back. The pair lands on the middle of one edge of the isogrid, so the
     // four nodes round that edge (its two ends, and the far corner of the triangle on either side) make a diamond
@@ -392,10 +393,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         if (!(di ? (dj ? (i + j) % 2 === 0 : j % 2 === 0) : i % 2 === 0) && !pinned(a) && !pinned(b)) continue;
-        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
-    // the ribs round the rim are the panel's side wall: draw its six corners down from the face sheet, as the sheet's own are
-    for (let k = 0; k < 6; k++){ const x = Math.cos(k*PI/3)*PL_R, y = Math.sin(k*PI/3)*PL_R; pf.edge.push(x,y,PB, x,y,PB + RIB_H); }
-    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, earGeo, EAR_Z };
+        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, earGeo, EAR_Z };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
