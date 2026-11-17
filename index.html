@@ -607,6 +607,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const SPOKE_R = 0.005, BALL_R = 0.012;
   const spokeGeo = new T.CylinderGeometry(SPOKE_R, SPOKE_R, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
   const ballGeo = new T.IcosahedronGeometry(BALL_R, 0);
+  // Swivel arms. A ball joint only swings about ±30°, and the spokes leave their ears almost sideways, so a ball on the
+  // end of an eye would have its spoke run back through it. So each eye is a barrel hinge, and on each end of it turns a
+  // short arm lying square to the barrel, with the ball on its tip: the arm swings round to follow its spoke sideways,
+  // the ball takes the spoke's tilt up or down, and the spoke leaves the ball heading away from the ear. The ball
+  // itself never turns; it is a ball. The fibre runs through the barrel, along the arm and through the ball's bore.
+  const ARM_L = 0.032, ARM_T = 0.012;   // barrel axis to ball centre; the arm's hub, along the barrel
+  const armGeo = done(fuse([[zCyl(0.011, 0.011, ARM_T, 6), null, 40],
+    [new T.CylinderGeometry(0.005, 0.005, ARM_L - 0.6*BALL_R, 6).rotateZ(-PI/2).translate((ARM_L - 0.6*BALL_R)/2, 0, 0), null, 40]]));
 
   // ---- horns. One Horn class, two types; every horn on the craft is a HornA or a HornB. ----
   // Each horn is a receive array of its own, built like a microphone. From the front: the face, a pentagonal puck that
@@ -615,7 +623,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // A type only states its sizes. Its shape is built from them once, the first time one is made, and every horn of
   // that type reuses it, so a change to a type changes all of its horns.
   // There are 12, one in each port of the shell: 6 of each type.
-  const EAR_OUT = 0.03, EAR_UP = 0.006;                                       // horn spoke ears: how far the eye stands off the corner, and proud of the face
+  const EAR_OUT = 0.015, EAR_UP = 0.006;                                      // horn spoke ears: how far the eye stands off the corner, and proud of the face
   const PUCK_H = 0.03;                                                        // face thickness
   const pent = (rt, rb, h, open) => zCyl(rt, rb, h, 5, open).rotateZ(PI/2);   // pentagonal section, corner 0 on +x
   const pentCorner = (k, r) => new V3(Math.cos(k*2*PI/5)*r, Math.sin(k*2*PI/5)*r, 0);
@@ -791,12 +799,21 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
     // so each horn has several paths home: lose one and the signal takes another.
     // named by where they are: the horn they serve, the tile corner or face corner they sit on, front (+z) or back
-    // Each end of a spoke: where its ball stud stands (t0 on the tile ear's eye, in the tile's frame; h0 on the face
-    // ear's stud, in the horn's frame) and which way the stud points (nT, nH, aimed once the webs can move: see aimStuds)
-    const side = s => s ? 'front' : 'back', at = an => `${an.f.name} corner ${an.k + 1}`;
+    // Each end of a spoke: a swivel arm on the end of the eye's barrel (t0 on the tile's, in the tile's frame; h0 on the
+    // face ear's, in the horn's frame) and the ball on the arm's tip. A face corner that takes two anchors stacks
+    // their two arms on its barrel, one above the other (j).
+    const side = s => s ? 'front' : 'back', at = an => `${an.f.name} corner ${an.k + 1}`, reach = w.horn.reach;
+    const arm = (parent, p, label) => { const g = new T.Group(), m = tag(new T.Mesh(armGeo.solid, fillMat), 'Swivel arm', 'Swivel arm, ' + label, w.horn);
+      m.userData.key = 'web'; m.edges = new T.LineSegments(armGeo.lines, lineMat('web')); g.add(m, m.edges); g.position.copy(p); parent.add(g); return g; };
+    const ball = (parent, label) => { const b = part('web', ballGeo, { part:'Ball joint', label:'Ball joint, ' + label, owner:w.horn }); parent.add(b); return b; };
     w.anchors.forEach(an => {
-      an.ends = [0, 1].map(s => ({ t0:an.loc.clone().setZ(s ? MOUNT.EAR_Z : -MOUNT.EAR_Z), h0:pentCorner(an.vi, w.ear).setZ(s ? PUCK_H + EAR_UP : -EAR_UP),
-        nT:new V3(), nH:new V3(), L:0 }));
+      const mates = w.anchors.filter(x => x.vi === an.vi), j = mates.indexOf(an), face = `face corner ${an.vi + 1}${mates.length > 1 ? ' to ' + at(an) : ''}`;
+      an.ends = [0, 1].map(s => { const sg = s ? 1 : -1, e = {
+          t0:an.loc.clone().setZ(sg*(MOUNT.EAR_Z + ARM_T/2)),
+          h0:pentCorner(an.vi, w.ear).setZ(s ? PUCK_H + EAR_UP + ARM_T/2 + j*ARM_T : -EAR_UP - ARM_T/2 - j*ARM_T), hz:reach };
+        e.armT = arm(an.f.obj, e.t0, `${at(an)}, ${side(s)}`); e.ballT = ball(an.f.obj, `${at(an)}, ${side(s)}`);
+        e.armH = arm(w.horn, e.h0.clone().setZ(e.h0.z + reach), `${face}, ${side(s)}`); e.ballH = ball(w.horn, `${face}, ${side(s)}`);
+        return e; });
       for (let s = 0; s < 2; s++){
         const sp = part('web', spokeGeo, { part:'Spoke', label:`Spoke, ${at(an)} to face corner ${an.vi + 1}, ${side(s)}`, owner:w.horn }); w.wires.push(sp); root.add(sp);
       }
@@ -841,42 +858,26 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const ph = Math.atan2(sy, sx);
       tmp.copy(ex).multiplyScalar(Math.cos(ph)).addScaledVector(ey, Math.sin(ph));
       w.obj.quaternion.setFromRotationMatrix(hb.makeBasis(tmp, tmp2.crossVectors(n, tmp), n));
-      // two spokes per anchor: front edge to front edge and back edge to back edge, ball to ball
+      // two spokes per anchor: front edge to front edge and back edge to back edge, ball to ball. Each arm turns on its
+      // barrel to point at the far end of its spoke; twice round, since each end's ball moves the other's aim a little
       w.anchors.forEach((an, i) => an.ends.forEach((e, s) => {
-        pk.copy(e.h0).addScaledVector(e.nH, e.L).applyQuaternion(w.obj.quaternion).add(P);
-        tmp.copy(e.t0).addScaledVector(e.nT, e.L).applyQuaternion(an.f.obj.quaternion).add(an.f.obj.position);
-        setWire(w.wires[2*i + s], tmp, pk);
+        const qT = an.f.obj.quaternion, qH = w.obj.quaternion;
+        aT.copy(e.t0).applyQuaternion(qT).add(an.f.obj.position); aH.copy(e.h0).applyQuaternion(qH).add(P);
+        bT.copy(aT); bH.copy(aH);
+        for (let it = 0; it < 2; it++){ swing(e.armT, e.ballT, e.t0, 0, qT, aT, bH, bT); swing(e.armH, e.ballH, e.h0, e.hz, qH, aH, bT, bH); }
+        setWire(w.wires[2*i + s], bT, bH);
       }));
     });
   }
-  // Ball studs. A ball joint swings about ±30°, and the spokes leave their ears almost sideways, so a ball sitting on
-  // the end of its eye would have its spoke run back through the eye. Instead each ball stands on a short neck out of
-  // the eye, aimed along its spoke's average direction over the unfold: the spoke then stays inside the joint's swing
-  // (within 24° at the tiles, 33° at the horns) and leaves the ball heading away from everything. The spokes stay
-  // straight. A face corner that takes two anchors gets two studs, one aimed at each.
-  const NECK = 0.036;   // eye to ball centre
-  const studGeo = done(fuse([[zCyl(0.0055, 0.0055, NECK - 0.004, 6).translate(0, 0, (NECK - 0.004)/2 - 0.004), null, 40], [ballGeo.clone().translate(0, 0, NECK), null, 20]]));
-  (function aimStuds(){
-    const d = new V3(), qi = new T.Quaternion(), ends = [];
-    webs.forEach(w => w.anchors.forEach((an, j) => an.ends.forEach((e, s) => ends.push({ w, an, e, sp:w.wires[2*j + s] }))));
-    for (let pass = 0; pass < 2; pass++){   // twice: the second pass aims from where the first put the balls
-      ends.forEach(x => { x.sT = new V3(); x.sH = new V3(); });
-      for (let i = 0; i <= 24; i++){ pose(i/24);
-        ends.forEach(x => { d.set(0, 0, 1).applyQuaternion(x.sp.quaternion);
-          x.sT.add(d.clone().applyQuaternion(qi.copy(x.an.f.obj.quaternion).invert()));
-          x.sH.add(d.clone().negate().applyQuaternion(qi.copy(x.w.obj.quaternion).invert())); }); }
-      ends.forEach(x => { x.e.nT.copy(x.sT).normalize(); x.e.nH.copy(x.sH).normalize(); x.e.L = NECK; });
-    }
-    // the studs, named as the balls were; a face corner with two studs names the tile corner each one serves
-    const side = s => s ? 'front' : 'back', at = an => `${an.f.name} corner ${an.k + 1}`;
-    const stud = (owner, parent, p, n, label) => { const g = new T.Group(), m = tag(new T.Mesh(studGeo.solid, fillMat), 'Ball joint', 'Ball joint, ' + label, owner);
-      m.userData.key = 'web'; m.edges = new T.LineSegments(studGeo.lines, lineMat('web')); g.add(m, m.edges);
-      g.position.copy(p); g.quaternion.setFromUnitVectors(zUp, n); parent.add(g); };
-    webs.forEach(w => w.anchors.forEach(an => { const two = w.anchors.filter(x => x.vi === an.vi).length > 1;
-      an.ends.forEach((e, s) => {
-        stud(w.horn, an.f.obj, e.t0, e.nT, `${at(an)}, ${side(s)}`);
-        stud(w.horn, w.horn, e.h0.clone().setZ(e.h0.z + w.horn.reach), e.nH, `face corner ${an.vi + 1}${two ? ' to ' + at(an) : ''}, ${side(s)}`); }); }));
-  })();
+  // turn an arm about its barrel (local z) to face the point far, put its ball on its tip, and give the ball's centre (out)
+  const aT = new V3(), aH = new V3(), bT = new V3(), bH = new V3(), sd = new V3(), sq = new T.Quaternion();
+  function swing(arm, ball, p0, hz, q, axis, far, out){
+    sd.subVectors(far, axis).applyQuaternion(sq.copy(q).invert());
+    const a = Math.atan2(sd.y, sd.x), c = Math.cos(a)*ARM_L, s = Math.sin(a)*ARM_L;
+    arm.rotation.z = a;
+    ball.position.set(p0.x + c, p0.y + s, p0.z + hz);
+    out.copy(axis).add(sd.set(c, s, 0).applyQuaternion(q));
+  }
   const hingeGeo = zCyl(0.007, 0.007, 0.24, 6);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
   order.forEach(f => { if (!f.par) return;
     const inv = f.qs.clone().invert();
