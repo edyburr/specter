@@ -26,8 +26,8 @@ Tiles are numbered in unfold order (Tile 01 is the front tile), corners 1-6 roun
 The page shows the name when you click a part, and the Blender objects carry the same names.
 
 In Blender, parts of one class share one mesh, named after the class (the `part` custom property on each object): every tile is a frame (ring, delta frame, hinge halves, fused), a panel (with its whiffles), a set of
-six actuator brackets and six shafts, each topped by a wrist (a wrist link and the shaft's end link, two drums at right angles), and all 20 frames share one mesh, as do all panels, all bracket sets, all shafts, all wrist links and all shaft end links, each horn type's body and face are
-one mesh used six times (`Horn A face`, ...), and all 114 spokes, every swivel arm and every spoke end link share one mesh each. Edit the
+six actuator brackets and six shafts, each hung from a gimbal ring at the bottom and a cube at the top, and all 20 frames share one mesh, as do all panels, all bracket sets, all shafts, all gimbal rings, cylinders, cubes and shaft yokes, each horn type's body and face are
+one mesh used six times (`Horn A face`, ...), and all 114 spokes, every spoke turret and every spoke end link share one mesh each. Edit the
 mesh once and every copy follows. Each spoke is one straight piece that the animation stretches as it telescopes.
 
 The version with carriages, boom-tip and tile-stalk horn mounts, and `render.js` is tagged `backup/all-mechanisms`.

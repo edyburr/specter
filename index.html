@@ -177,7 +177,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       </dl>
     </section>
 
-    <details class="note"><summary>Design notes</summary><p>Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke end is a small jointed arm, built like a surgical robot's and with no ball: square links, and at each joint a drum, two halves of one cylinder, one per link. A swivel arm turns on the ear's barrel to follow the spoke sideways; at its tip a second drum stands square to it, and the spoke's end link turns in the other half beside it to take the spoke's tilt, while the round tube rolls in its telescoping sleeve. The fibre runs down the hollow barrel, along the arm and once round the tip drum's axle in a loose loop, so nothing needs a rotating seal, and on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p></details>
+    <details class="note"><summary>Design notes</summary><p>Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke end turns on two axles that cross on the spoke's own line, and no ball: a turret turns on the ear's eye to follow the spoke round, and the spoke's end link tilts in a yoke on the turret, its drum between the yoke's two so the three read as one drum, while the round tube rolls in its telescoping sleeve. A joint that turns freely can only carry a load through its axles, so the spoke only ever pushes or pulls straight through the crossing. The fibre comes up the hollow eye into the turret and loops once round the yoke's axle, so nothing needs a rotating seal, and on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p></details>
   </aside>
 </div>
 
@@ -286,10 +286,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const lump = (key, name, items) => { const f = done(fuse(items)), g = new T.Group(), m = tag(new T.Mesh(f.solid, fillMat), name); m.userData.key = key;
     m.edges = new T.LineSegments(f.lines, lineMat(key)); g.add(m, m.edges); root.add(g); return g; };
 
-  // ---- joints. Round only where something turns on it: every joint is a drum, two halves of one cylinder, each the end
-  // of one square link, the links side by side along the drum's axis, as on a surgical robot's arm. No balls. ----
+  // ---- joints. Round only where something turns on it: every joint is a drum, split where its parts turn on each other,
+  // and the links between joints are square. No balls. Nothing here has a motor in its joints to hold a turn, so every
+  // load must run through the axles: a strut's two-axle joints have their axles crossing on the strut's own line. ----
   const DRUM_N = 12;                      // sides on every drum: enough to read as round, few enough that each facet draws
-  const ARM_HUB = 0.012;                  // radius of the drum a spoke's swivel arm turns on: the ear's eye and the arm's hub, halves of one drum
+  const ARM_HUB = 0.012;                  // radius of the drum a spoke's turret turns on: the ear's eye and the turret, halves of one drum
   const CAP_R = 0.0045, CAP_T = 0.0015;   // the axle cap on a drum's outer face
   // A drum with a square link running off it, as one outline in a plane: the drum a DRUM_N-gon of radius r round the
   // origin, the link the band lo < v < hi out to u = end (either side). The drum's corners inside the link are dropped
@@ -330,11 +331,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2;   // whiffles: inner foot, middle of the four
     const WH_HALF = 0.078, WH_WI = 0.024, WH_WO = 0.084, WH_CH = 0.026;   // whiffle: half its length, half-width at the narrow end and at the base, how far the base corners are cut back
     const BOT_T = 0.04, ACT_TILT = 12*deg, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.012, HUB_H = 0.008;   // actuators
-    // A shaft's top meets its whiffle through a wrist of two drums at right angles. The socket hangs from the whiffle and
-    // ends in half of the first drum; the wrist link turns in the other half and carries half of the second drum, square to
-    // the first; the shaft's end link turns in the other half of that. Each joint offsets its links side by side, so the
-    // shaft runs a little to the side of the socket.
-    const WR_R = 0.008, WR_H = 0.006, WR_W = 2*WR_H, WR_UP = 0.012, WR_L1 = 0.024, WR_L2 = 0.016;   // drum radius; a link's half-width (links are square, a half drum is a link wide); whiffle to the first drum's axle; first axle to second; second axle to where the shaft starts
+    // Each actuator is a strut, as in a hexapod: a joint at each end that turns freely on two axles crossing at one point,
+    // and the shaft running from one crossing to the other. A free joint can only carry a load through its axles, so all
+    // an actuator ever does is push or pull along its own line. At the bottom the cylinder hangs in a gimbal: a square
+    // ring between the bracket's legs, turning on an axle across them, and the cylinder turning in the ring on an axle
+    // square to that. At the top a cube under the whiffle: a socket's two arms hold it on one axle, and the yoke on the
+    // shaft's end holds it on the other. The shaft rolls in its cylinder, its last degree.
+    const GZ = -0.04, G_RO = 0.018, G_RI = 0.0145, G_T = 0.006, G_AX = 0.0055, COL = 0.012, COL_T = 0.005, CYL_BOT = -0.030, CYL_TOP = 0.03;   // gimbal: its crossing, below the bracket's top; the ring's outer and inner half-width and half-thickness; its axles' radius; the collar on the cylinder, half-width and half-height; the cylinder's ends from the crossing
+    const CU = 0.007, CU_R = 0.0065, CU_AT = 0.0035, CU_AW = 0.006, CU_UP = 0.02, CU_DN = 0.012, CU_BR = 0.006;   // top joint (a pair's two stand 30 mm apart): the cube's half-width; its drums' radius; an arm's thickness and half-width; the crossing to the whiffle; the crossing to the shaft yoke's bridge; the bridge's thickness
     const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06, MOT_R = 0.02, MOT_L = 0.045;   // hinge halves: barrel, lug span off the centre line, drive
 
     // ---- frame: ring, delta frame, hinge halves ----
@@ -353,7 +357,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       lift.push([zCyl(0.02, 0.02, LIFT_L - LIFT_CO, 6), move(q.x, q.y, ZB - (LIFT_L + LIFT_CO)/2), 40], [zCyl(0.027, 0.027, LIFT_CO, 6), move(q.x, q.y, ZB - LIFT_CO/2), 40]); });
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
     // in an eye that stands proud of the ring top and bottom: a short drum, the lower half of the drum each port-web spoke's
-    // swivel arm turns on, the arm's hub being the upper half. One arm turns on each end of the eye,
+    // turret turns on, the turret being the upper half. One turret turns on each end of the eye,
     // and the horn's fibre enters the ring through it.
     const EAR_H = 0.04, EAR_R = ARM_HUB, EAR_Z = FR_TH/2 + 0.006, ears = [], earGeo = [];   // ears: where each corner's eye is; earGeo: its shape. A tile only gets the ears a spoke lands on
     for (let k = 0; k < 6; k++){ const C = dir2(k*PI/3).multiplyScalar(RING_O*2/S3), pe = k % 2 ? k : k - 1;   // pe: the port edge at this corner
@@ -393,39 +397,43 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const pos = g.attributes.position, tn = sg*Math.tan(ACT_TILT);   // legs' tops cut to sit flat under the arm
       for (let i = 0; i < pos.count; i++) if (pos.getZ(i) > -1e-6) pos.setZ(i, -pos.getY(i)*tn);
       return g; };
-    const cyl = zCyl(BODY_CYL, BODY_CYL, BODY_L - U_T - 0.01, 6).translate(0, 0, -(BODY_L - U_T + 0.01)/2);
     const hub = zCyl(HUB_R, HUB_R, HUB_H, 6).translate(0, 0, -BODY_L - HUB_H/2);   // a boss under the bracket's base, inside its footprint, meeting it face to face
     const sockets = [];
-    // The wrist's pieces, in its frame (above): first drum's axle along X through the origin, second's along Y, WR_L1 below
-    // it and centred on the wrist link. A piece whose drum turns on X is drawn across X (onX), one on Y across Y (onY);
-    // either way its link runs along Z.
+    // a drum along x, from x0 to x1; a piece drawn across y turned so its axle runs along x (onX) or stays on y (onY),
+    // either way with its link along z
+    const capX = (x0, x1, r) => new T.CylinderGeometry(r || CAP_R, r || CAP_R, x1 - x0, DRUM_N).rotateZ(PI/2).translate((x0 + x1)/2, 0, 0);
     const onX = M4().makeBasis(new V3(0, 0, 1), new V3(1, 0, 0), new V3(0, 1, 0)), onY = M4().makeBasis(new V3(0, 0, 1), new V3(0, 1, 0), new V3(-1, 0, 0));
-    const WRIST = { X:new V3(1, 0, 0), s:new V3(WR_H, 2*WR_H, -WR_L1), B:new V3(WR_H, 0, -WR_L1), L2:WR_L2 };   // s: from the first axle to the shaft's line at the second; B: the second drum's centre
-    // the socket: the first drum's half on -X, its link straight up to the whiffle, an axle cap on its outer face
-    const socket = [[acrossY(drumLink(WR_R, -WR_H, WR_H, WR_UP), -WR_W, 0), onX, 20], [capY(-WR_W - CAP_T, -WR_W), onX, 20]];
-    // the wrist link: the first drum's other half (+X) running down, and half the second drum (-Y side) running up, meeting
-    // face to face halfway between the axles; an axle cap on each outer face
-    const atB = m => M4().makeTranslation(WRIST.B.x, WRIST.B.y, WRIST.B.z).multiply(m);
-    const wrist = done(fuse([[acrossY(drumLink(WR_R, -WR_H, WR_H, -WR_L1/2), 0, WR_W), onX, 20], [capY(WR_W, WR_W + CAP_T), onX, 20],
-      [acrossY(drumLink(WR_R, -WR_H, WR_H, WR_L1/2), -WR_H, WR_H), atB(onY), 20], [capY(-WR_H - CAP_T, -WR_H), atB(onY), 20]]));
-    // the shaft's end link, from the second drum's centre: the drum's other half (+Y) running down to where the shaft starts
-    const rodEnd = done(fuse([[acrossY(drumLink(WR_R, -WR_H, WR_H, -WR_L2), WR_H, 3*WR_H), onY, 20], [capY(3*WR_H, 3*WR_H + CAP_T), onY, 20]]));
+    // The gimbal, in the bracket's frame (x across its legs, z up the actuator's line) from its crossing. The ring: a
+    // square frame round the cylinder, an axle stub out of each side to the legs (x). Its axle caps sit on the legs'
+    // outer faces, with the bracket. The cylinder: in two lengths either side of a square collar, an axle stub out of
+    // each side of the collar to the ring (y), capped on the ring's outer faces.
+    const sq = r => [[-r, -r], [r, -r], [r, r], [-r, r]].map(([x, y]) => new V2(x, y));
+    const gRing = done(fuse([[slab(sq(G_RO), [sq(G_RI)], -G_T, 2*G_T), null, 20], [capX(G_RO, xLeg, G_AX), null, 20], [capX(-xLeg, -G_RO, G_AX), null, 20]]));
+    const gBody = done(fuse([[zCyl(BODY_CYL, BODY_CYL, -COL_T - CYL_BOT, 6).translate(0, 0, (CYL_BOT - COL_T)/2), null, 40],
+      [zCyl(BODY_CYL, BODY_CYL, CYL_TOP - COL_T, 6).translate(0, 0, (CYL_TOP + COL_T)/2), null, 40], [new T.BoxGeometry(2*COL, 2*COL, 2*COL_T), null, 20],
+      [capY(COL, G_RI, G_AX), null, 20], [capY(-G_RI, -COL, G_AX), null, 20], [capY(G_RO, G_RO + CAP_T), null, 20], [capY(-G_RO - CAP_T, -G_RO), null, 20]]));
+    const gCaps = [[capX(xLeg + U_T, xLeg + U_T + CAP_T), M4().makeTranslation(0, 0, GZ)], [capX(-xLeg - U_T - CAP_T, -xLeg - U_T), M4().makeTranslation(0, 0, GZ)]];
+    // The top joint, in its frame from the crossing: X across the actuator pair's arm (the socket's axle), Y along it
+    // (the shaft yoke's), Z the panel's normal. The socket: two arms hanging from the whiffle, one either side of the cube,
+    // each ending in a drum on X. The cube. The shaft's yoke: two arms either side of the cube on Y, running down to a
+    // bridge the shaft starts from. Every drum capped on its outer face.
+    const cuSocket = [[acrossY(drumLink(CU_R, -CU_AW, CU_AW, CU_UP), CU, CU + CU_AT), onX, 20], [acrossY(drumLink(CU_R, -CU_AW, CU_AW, CU_UP), -CU - CU_AT, -CU), onX, 20],
+      [capY(CU + CU_AT, CU + CU_AT + CAP_T), onX, 20], [capY(-CU - CU_AT - CAP_T, -CU - CU_AT), onX, 20]];
+    const cuBlock = done(fuse([[new T.BoxGeometry(2*CU, 2*CU, 2*CU), null, 20]]));
+    const cuYoke = done(fuse([[acrossY(drumLink(CU_R, -CU_AW, CU_AW, -CU_DN), CU, CU + CU_AT), onY, 20], [acrossY(drumLink(CU_R, -CU_AW, CU_AW, -CU_DN), -CU - CU_AT, -CU), onY, 20],
+      [capY(CU + CU_AT, CU + CU_AT + CAP_T), onY, 20], [capY(-CU - CU_AT - CAP_T, -CU - CU_AT), onY, 20],
+      [new T.BoxGeometry(2*CU_AW, 2*(CU + CU_AT), CU_BR).translate(0, 0, -CU_DN - CU_BR/2), null, 20]]));
     BASE.forEach(c => [1, -1].forEach(sg => { const u = dir3(c, 1), t = dir3(c + PI/2, 1);
       const ax = new V3(0, 0, Math.cos(ACT_TILT)).addScaledVector(t, -sg*Math.sin(ACT_TILT));
-      const o = u.clone().multiplyScalar(rAct).addScaledVector(t, sg*BOT_T).setZ(ZB), b = o.clone().addScaledVector(ax, -0.01);
-      // the wrist's own frame: the first drum's axle along X, the second's along Y, Z the panel's normal. The pair's two
-      // wrists are turned half round from each other, so they stand point-symmetric with their sockets outward
-      const Jq = new T.Quaternion().setFromRotationMatrix(M4().makeBasis(u.clone().multiplyScalar(-sg), t.clone().multiplyScalar(-sg), zUp));
-      // at rest the shaft runs along ax: the turn a0 of the first drum that lays the shaft's plane along it, and so where
-      // the first drum's axle stands, WR_UP under the whiffle, for the shaft's line to run back down to its cylinder
-      const w = ax.clone().negate().applyQuaternion(Jq.clone().invert()), a0 = Math.atan2(w.y, -w.z);
-      const s0 = WRIST.s.clone().applyAxisAngle(WRIST.X, a0).applyQuaternion(Jq);   // first axle to the shaft's line, turned, in the panel's frame
-      const p = b.clone().addScaledVector(ax, (zPB - H_W - WR_UP + s0.z - b.z)/ax.z); p.z -= Z_PL;   // where the shaft's line meets the second axle, in the panel's frame
-      const pA = p.clone().sub(s0);   // the first drum's axle
-      const m = M4().makeBasis(u, new V3().crossVectors(ax, u), ax).setPosition(o);
-      act.push([uGeo(sg), m], [cyl, m, 40], [hub, m, 40]); legs.push({ b, pA, Jq, a0 }); sockets.push(pA); }));
+      const o = u.clone().multiplyScalar(rAct).addScaledVector(t, sg*BOT_T).setZ(ZB);
+      const m = M4().makeBasis(u, new V3().crossVectors(ax, u), ax).setPosition(o), mq = new T.Quaternion().setFromRotationMatrix(m);
+      const cb = o.clone().addScaledVector(ax, GZ);                                        // the gimbal's crossing
+      const ct = cb.clone().addScaledVector(ax, (zPB - H_W - CU_UP - cb.z)/ax.z); ct.z -= Z_PL;   // the top joint's, on the same line, CU_UP under the whiffle, in the panel's frame
+      const Jq = new T.Quaternion().setFromRotationMatrix(M4().makeBasis(u, t, zUp));
+      act.push([uGeo(sg), m], [hub, m, 40], ...gCaps.map(([g, at]) => [g, m.clone().multiply(at), 20]));
+      legs.push({ cb, mq, ct, Jq }); sockets.push(ct); }));
 
-    // ---- panel: face sheet, isogrid ribs, whiffles with their feet and wrist sockets ----
+    // ---- panel: face sheet, isogrid ribs, whiffles with their feet and the actuators' sockets ----
     // the face sheet, outlined with the rim ribs under it as one slab: the panel's side reads as one wall, no seam
     const panel = [[hexPrism(PL_R, FS_TH), move(0, 0, PL_TH/2 - FS_TH/2), 'solid'], [new T.EdgesGeometry(hexPrism(PL_R, PL_TH)), null, 'lines']];
     // A whiffle is a trapezoid, narrow end toward the panel's centre, centred along its length on its pair of actuators,
@@ -440,7 +448,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     BASE.forEach((c, i) => { const w = whiffle(c, i);
       panel.push([slab(w.outline.map(q => new V2(q.x, q.y)), null, PB - H_W, H_W - FOOT_H)]);
       w.feet.forEach(f => panel.push([zCyl(0.011, 0.011, FOOT_H, 6), move(f.x, f.y, PB - FOOT_H/2), 40])); });
-    legs.forEach(l => { const m = M4().makeRotationFromQuaternion(l.Jq).setPosition(l.pA); socket.forEach(([g, at, a]) => panel.push([g, m.clone().multiply(at), a])); });
+    legs.forEach(l => { const m = M4().makeRotationFromQuaternion(l.Jq).setPosition(l.ct); cuSocket.forEach(([g, at, a]) => panel.push([g, m.clone().multiply(at), a])); });
     const pf = fuse(panel);
     // The ribs are a coarse isogrid, every other line, so the back reads as structure and not as a dark mat. Wherever
     // something bolts on behind the panel (a whiffle foot, a socket) the full fine grid stays under it.
@@ -451,7 +459,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         if (!(di ? (dj ? (i + j) % 2 === 0 : j % 2 === 0) : i % 2 === 0) && !pinned(a) && !pinned(b)) continue;
-        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, wrist, rodEnd, WRIST, ears, earGeo, EAR_Z };
+        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, gRing, gBody, cuBlock, cuYoke, ROD:{ bot:CYL_TOP, top:CU_DN + CU_BR }, ears, earGeo, EAR_Z };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
@@ -512,12 +520,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.panel.add(new T.Line(Tile.inset, lineMat(pk)));
       this.panel.add(new T.Points(Tile.dots, dotMat));
       this.panel.position.z = Z_PL; this.stage.add(this.panel);
-      // each actuator's shaft, and the wrist at its top: the wrist link hangs from its socket on the panel, the shaft's end
-      // link from the wrist link
-      this.legs = MOUNT.legs.map((l, i) => { const rod = part(ak, Tile.rod, { part:'Actuator rod', label:`Actuator rod ${i + 1}`, owner:this }); this.stage.add(rod);
-        const wrist = fused(ak, MOUNT.wrist, 'Actuator wrist', `Actuator wrist ${i + 1}`), end = fused(ak, MOUNT.rodEnd, 'Actuator rod end', `Actuator rod end ${i + 1}`);
-        wrist.position.copy(l.pA); this.panel.add(wrist); end.position.copy(MOUNT.WRIST.B); wrist.add(end);
-        return { rod, wrist, end, a:l.a0 }; });
+      // each actuator: at the bottom its gimbal ring, hanging in the bracket, and its cylinder in the ring; at the top the
+      // cube, hanging from its socket on the panel, and the shaft's yoke on the cube; and the shaft between them
+      this.legs = MOUNT.legs.map((l, i) => { const n = i + 1, rod = part(ak, Tile.rod, { part:'Actuator rod', label:`Actuator rod ${n}`, owner:this }); this.stage.add(rod);
+        const ring = fused(ak, MOUNT.gRing, 'Actuator gimbal', `Actuator gimbal ${n}`), body = fused(ak, MOUNT.gBody, 'Actuator cylinder', `Actuator cylinder ${n}`);
+        ring.position.copy(l.cb); this.stage.add(ring); ring.add(body);
+        const cube = fused(ak, MOUNT.cuBlock, 'Actuator cross', `Actuator cross ${n}`), yoke = fused(ak, MOUNT.cuYoke, 'Actuator rod yoke', `Actuator rod yoke ${n}`);
+        cube.position.copy(l.ct); this.panel.add(cube); cube.add(yoke);
+        return { rod, ring, body, cube, yoke }; });
       // each lift's shaft, from the tongue up to the tab on the delta
       this.lifts = MOUNT.lifts.map((p, j) => Tile.liftStages.map((st, i) => {
         const r = part(lk, st.geo, { part:`Lift shaft, stage ${i + 1}`, label:`Lift ${j + 1} shaft, stage ${i + 1}`, owner:this }); r.position.copy(p); this.obj.add(r); return r; }));
@@ -537,30 +547,24 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       this.stage.position.z = lift;
       this.lifts.forEach(stages => stages.forEach((r, i) => { r.scale.z = Math.max(lift*Tile.liftStages[i].part, 1e-3); }));
       this.panel.quaternion.copy(q);
-      // The brackets stay put on the delta; each shaft runs from its cylinder up to its wrist. The wrist link turns on the
-      // first drum (a) until the shaft's cylinder lies in the plane the second drum swings the shaft in; a few times round,
-      // since turning it moves the second drum a little. Then the shaft's end link turns on the second drum (bt) to point
-      // down the shaft, and the shaft runs up to it.
-      const W = MOUNT.WRIST, X = W.X, Y = Tile._Y, J = Tile._J, Ji = Tile._Ji, ra = Tile._ra, cs = Tile._cs, w = Tile._w;
-      MOUNT.legs.forEach((l, i) => {
-        const leg = this.legs[i]; let a = leg.a;
-        J.copy(q).multiply(l.Jq); Ji.copy(J).invert();
-        const pA = Tile._pA.copy(l.pA).applyQuaternion(q); pA.z += Z_PL;   // the first axle, in the stage's frame
-        for (let it = 0; it < 3; it++){
-          cs.copy(W.s).applyQuaternion(ra.setFromAxisAngle(X, a)).applyQuaternion(J).add(pA);   // the shaft's line at the second axle
-          w.subVectors(l.b, cs).applyQuaternion(Ji); a = Math.atan2(w.y, -w.z); }
-        cs.copy(W.s).applyQuaternion(ra.setFromAxisAngle(X, a)).applyQuaternion(J).add(pA);
-        w.subVectors(l.b, cs).applyQuaternion(Ji).applyAxisAngle(X, -a);   // toward the cylinder, in the wrist link's frame
-        leg.a = a;
-        leg.wrist.quaternion.copy(l.Jq).multiply(ra.setFromAxisAngle(X, a));
-        leg.end.quaternion.setFromAxisAngle(Y, Math.atan2(-w.x, -w.z));
-        const d = w.subVectors(l.b, cs).normalize(), top = cs.addScaledVector(d, W.L2);   // where the shaft meets its end link
-        d.subVectors(top, l.b); const len = d.length();
-        leg.rod.position.copy(l.b); leg.rod.scale.z = len; leg.rod.quaternion.setFromUnitVectors(zUp, d.divideScalar(len));
+      // Each actuator's line runs from its gimbal's crossing, which stays put on the delta, to its cube's, which moves
+      // with the panel. Each joint turns on its first axle until the line lies square to its second, then on the second
+      // to lie along it; the shaft runs from the cylinder's mouth to the yoke's bridge.
+      const X = Tile._X, Y = Tile._Y, d = Tile._d, e = Tile._e, ct = Tile._ct, J = Tile._J, ra = Tile._ra;
+      MOUNT.legs.forEach((l, i) => { const leg = this.legs[i];
+        ct.copy(l.ct).applyQuaternion(q); ct.z += Z_PL;   // the cube's crossing, in the stage's frame
+        d.subVectors(ct, l.cb).applyQuaternion(J.copy(l.mq).invert());   // up the line, in the bracket's frame
+        const a = Math.atan2(-d.y, d.z); d.applyAxisAngle(X, -a);
+        leg.ring.quaternion.copy(l.mq).multiply(ra.setFromAxisAngle(X, a)); leg.body.rotation.y = Math.atan2(d.x, d.z);
+        e.subVectors(l.cb, ct).applyQuaternion(J.copy(q).multiply(l.Jq).invert());   // down the line, in the top joint's frame
+        const b = Math.atan2(e.y, -e.z); e.applyAxisAngle(X, -b);
+        leg.cube.quaternion.copy(l.Jq).multiply(ra.setFromAxisAngle(X, b)); leg.yoke.rotation.y = Math.atan2(-e.x, -e.z);
+        d.subVectors(ct, l.cb); const L = d.length(); d.divideScalar(L);
+        leg.rod.position.copy(l.cb).addScaledVector(d, MOUNT.ROD.bot); leg.rod.scale.z = L - MOUNT.ROD.bot - MOUNT.ROD.top; leg.rod.quaternion.setFromUnitVectors(zUp, d);
       });
     }
-    static _Y = new V3(0, 1, 0); static _J = new T.Quaternion(); static _Ji = new T.Quaternion(); static _ra = new T.Quaternion();
-    static _cs = new V3(); static _w = new V3(); static _pA = new V3();
+    static _X = new V3(1, 0, 0); static _Y = new V3(0, 1, 0); static _d = new V3(); static _e = new V3(); static _ct = new V3();
+    static _J = new T.Quaternion(); static _ra = new T.Quaternion();
     get name(){ return this.obj.name; }
     set name(s){ this.obj.name = s; this.panel.name = s + ' panel'; }
   }
@@ -686,30 +690,34 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // spokes: hollow 10 mm tubes, unit length on +z, stretched to fit; and the joints at their ends
   const SPOKE_R = 0.005;
   const spokeGeo = new T.CylinderGeometry(SPOKE_R, SPOKE_R, 1, 6, 1, true).rotateX(PI/2).translate(0, 0, 0.5);
-  // Every spoke end is a jointed arm, built like a surgical robot's: square links, and at each joint a drum, two halves of
-  // one cylinder, each half the end of one link, the links side by side along the drum's axis. No ball anywhere.
-  // Each eye is a barrel hinge, and on each end of it turns a swivel arm: its hub is a drum on the barrel, and it swings
-  // round to follow its spoke sideways. At its tip a second drum stands square to the barrel and to the arm: the arm ends
-  // in one half, and the spoke's end link in the other, beside it, so the spoke tilts up or down. The spoke's last
-  // degree, its roll, is in the tube itself: round sections telescoping inside one another turn freely.
-  // Round only where something turns on it: the drums and the tube. The links are square.
-  // The fibre runs down the hollow barrel, along the arm and once round the tip drum's axle in a loose loop into the
-  // spoke: the joints only ever turn part of the way round, so a loop takes the motion and nothing needs a rotating seal.
-  const ARM_L = 0.036, ARM_T = 0.012;   // barrel axis to the tip drum's axis; the arm's thickness, along the barrel
-  const DRUM_R = 0.008, LINK_H = 0.006, LINK_W = 0.011, ARM_SEAM = 0.02, LUG_L = 0.02;
-  // tip drum radius; a link's half-height (half of ARM_T); each half drum's width along its axle (the arm's half on -y,
-  // the spoke's on +y); where the arm's link meets its half drum; axle to where the tube starts
-  const SPOKE_Y = LINK_W/2;             // the spoke runs this far to the side of the arm, through the middle of its half drum
-  // the arm, in its own frame: barrel axis at the origin, the arm along +x, the barrel along z. Two pieces meeting face to
-  // face at ARM_SEAM: the hub drum and the root of the link, ARM_T thick; and the rest of the link ending in its half of
-  // the tip drum, with an axle cap on its outer face
-  const armGeo = done(fuse([
-    [slab(drumLink(ARM_HUB, -LINK_W, 0, ARM_SEAM), null, -ARM_T/2, ARM_T), null, 20],
-    [acrossY(drumLink(DRUM_R, -LINK_H, LINK_H, ARM_SEAM - ARM_L), -LINK_W, 0).translate(ARM_L, 0, 0), null, 20],
-    [capY(-LINK_W - CAP_T, -LINK_W).translate(ARM_L, 0, 0), null, 20]]));
-  // the spoke's end link, in its own frame: the tip drum's axis along y through the origin, the spoke leaving along +x at
-  // y = SPOKE_Y. Its half drum, the square link out to where the tube starts, and the axle cap on its outer face
-  const lugGeo = done(fuse([[acrossY(drumLink(DRUM_R, -LINK_H, LINK_H, LUG_L), 0, LINK_W), null, 20], [capY(LINK_W, LINK_W + CAP_T), null, 20]]));
+  // Every spoke end is a two-axis joint whose axles cross on the spoke's own line. A joint that turns freely can only carry
+  // a load that runs through its axle, so the spoke pushes or pulls straight through the crossing and no joint is asked
+  // to hold a turn. On each end of an ear's eye turns a turret, the other half of the eye's drum, so it can follow its
+  // spoke round. On the turret stands a yoke: two arms, each ending in a drum on an axle across the turret, and between
+  // them the spoke's end link turns on the same axle, so the three read as one drum in three parts and the spoke tilts up
+  // or down. The two axles cross in the middle of that drum, on the barrel's axis, and the spoke's line runs through
+  // the crossing. The spoke's last degree, its roll, is in the tube itself: round sections telescoping inside one
+  // another turn freely. Round only where something turns on it: the drums and the tube. The links are square.
+  // The fibre comes up the hollow barrel into the turret and loops once round the yoke's axle into the spoke: the joints
+  // only ever turn part of the way round, so a loop takes the motion and nothing needs a rotating seal.
+  const HUB_T = 0.006, YOKE_R = 0.007, YOKE_IN = 0.006, YOKE_ARM = 0.004, YOKE_W = 0.005, YOKE_Z = 0.022, END_H = 0.0055, END_L = 0.02;
+  // the turret's drum height (the eye under it is as tall); the yoke's drum radius; half the end link's width, which
+  // the arms straddle; an arm's thickness; an arm's half-width; the eye's face to the cross axle; the end link's
+  // half-height; the cross axle to where the tube starts. The spokes tilt up to about 32° toward their ears over the
+  // unfold: YOKE_Z keeps the end link clear of the turret's drum at that.
+  const YOKE_OUT = YOKE_IN + YOKE_ARM, EYE_SEP = 2*ARM_HUB + 0.003;   // EYE_SEP: centre to centre of two eyes side by side on one ear
+  // the turret, in its own frame: the barrel's axis along z from the eye's face at the origin, the spoke leaving toward
+  // +x, the cross axle along y at height YOKE_Z. Its drum, and an arm either side running up from it into its drum,
+  // with an axle cap on its outer face
+  const upY = new T.Matrix4().makeBasis(new V3(0, 0, 1), new V3(0, 1, 0), new V3(-1, 0, 0));   // a drum-and-link outline drawn across y, its link along z
+  const atYoke = new T.Matrix4().makeTranslation(0, 0, YOKE_Z).multiply(upY);
+  const turretGeo = done(fuse([[zCyl(ARM_HUB, ARM_HUB, HUB_T, DRUM_N).translate(0, 0, HUB_T/2), null, 20],
+    [acrossY(drumLink(YOKE_R, -YOKE_W, YOKE_W, HUB_T - YOKE_Z), YOKE_IN, YOKE_OUT), atYoke, 20],
+    [acrossY(drumLink(YOKE_R, -YOKE_W, YOKE_W, HUB_T - YOKE_Z), -YOKE_OUT, -YOKE_IN), atYoke, 20],
+    [capY(YOKE_OUT, YOKE_OUT + CAP_T), atYoke, 20], [capY(-YOKE_OUT - CAP_T, -YOKE_OUT), atYoke, 20]]));
+  // the spoke's end link, in its own frame: on the cross axle (along y) at the origin, the spoke leaving along +x. Its
+  // drum, between the arms, and the square link out to where the tube starts
+  const endGeo = done(fuse([[acrossY(drumLink(YOKE_R, -END_H, END_H, END_L), -YOKE_IN, YOKE_IN), null, 20]]));
 
   // ---- horns. One Horn class, two types; every horn on the craft is a HornA or a HornB. ----
   // Each horn is a receive array of its own, built like a microphone. From the front: the face, a pentagonal puck that
@@ -753,21 +761,26 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       }
       return this._shape;
     }
-    // the face with a spoke ear on each corner: its outline runs out into a tapered tab at each corner, with a stud
-    // standing on the tab front and back, like the ears on the tiles' rings. A spoke's swivel arm turns on each stud.
-    // used: the corners a spoke lands on; only those get an ear. Faces with the same corners used share one shape
+    // the face with a spoke ear on each corner: its outline runs out into a tapered tab at each corner, with an eye
+    // standing on the tab front and back, like the ears on the tiles' rings: a short drum, the lower half of the drum a
+    // spoke's turret turns on. A corner that takes two spokes a side has two eyes side by side, EYE_SEP apart (eyeAt),
+    // its tab widened to carry them, the tab's sides running on along the face's edges.
+    // used: how many spokes a side each corner takes (a Map); only those corners get an ear. Faces alike share one shape
+    static eyeAt(k, j, n){ const a = k*2*PI/5, w = (j - (n - 1)/2)*EYE_SEP; return new V3(Math.cos(a)*this.ear - Math.sin(a)*w, Math.sin(a)*this.ear + Math.cos(a)*w, 0); }
     static eared(used){
-      const key = [...used].sort().join(), made = this._faces || (this._faces = {}); if (made[key]) return made[key];
-      const out = [], items = [], stud = zCyl(ARM_HUB, ARM_HUB, EAR_UP, DRUM_N);   // the lower half of the swivel arm's drum, as on the tiles' ears
-      for (let k = 0; k < 5; k++){ const a = k*2*PI/5, C = new T.Vector2(Math.cos(a), Math.sin(a)), t = new T.Vector2(-C.y, C.x);
-        const at = (r, w) => C.clone().multiplyScalar(r).addScaledVector(t, w), E = at(this.ear, 0);
-        if (!used.has(k)) { out.push(at(this.puck, 0)); continue; }   // a plain corner
-        out.push(at(this.puck - 0.0206, -0.0283), at(this.ear + 0.012, -0.013), at(this.ear + 0.012, 0.013), at(this.puck - 0.0206, 0.0283));
-        for (const sg of [-1, 1]) items.push([stud, new T.Matrix4().makeTranslation(E.x, E.y, sg*(PUCK_H + EAR_UP)/2), 20]); }
+      const key = [...used].sort((x, y) => x[0] - y[0]).join(';'), made = this._faces || (this._faces = {}); if (made[key]) return made[key];
+      const out = [], items = [], stud = zCyl(ARM_HUB, ARM_HUB, EAR_UP, DRUM_N);
+      for (let k = 0; k < 5; k++){ const a = k*2*PI/5, C = new T.Vector2(Math.cos(a), Math.sin(a)), t = new T.Vector2(-C.y, C.x), n = used.get(k) || 0;
+        const at = (r, w) => C.clone().multiplyScalar(r).addScaledVector(t, w);
+        if (!n) { out.push(at(this.puck, 0)); continue; }   // a plain corner
+        const s = (n - 1)*EYE_SEP/2, g = (0.0283 + s)/0.0283;
+        out.push(at(this.puck - 0.0206*g, -0.0283*g), at(this.ear + 0.012, -0.013 - s), at(this.ear + 0.012, 0.013 + s), at(this.puck - 0.0206*g, 0.0283*g));
+        for (let j = 0; j < n; j++){ const E = this.eyeAt(k, j, n);
+          for (const sg of [-1, 1]) items.push([stud, new T.Matrix4().makeTranslation(E.x, E.y, sg*(PUCK_H + EAR_UP)/2), 20]); } }
       items.unshift([slab(out, null, -PUCK_H/2, PUCK_H)]);
       return made[key] = done(fuse(items)).solid;
     }
-    // used: the face corners that carry a spoke
+    // used: how many spokes a side each face corner carries
     constructor(used){
       super();
       const H = this.kind = this.constructor, s = H.shape, add = (n, geo, z) => {
@@ -882,34 +895,37 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       // the face corner that faces this anchor when stowed
       const d = a.f.verts[a.k].clone().sub(C); d.addScaledVector(n0, -d.dot(n0));
       if (!e1) e1 = d.clone().normalize();
-      const e2 = new V3().crossVectors(n0, e1), vi = (Math.round(Math.atan2(d.dot(e2), d.dot(e1))/(2*PI/5)) % 5 + 5) % 5;
-      w.anchors.push({ f:a.f, k:a.k, loc:a.loc, vi }); a.f.addEar(a.k);
+      const e2 = new V3().crossVectors(n0, e1), ang = Math.atan2(d.dot(e2), d.dot(e1)), vi = (Math.round(ang/(2*PI/5)) % 5 + 5) % 5;
+      const off = Math.atan2(Math.sin(ang - vi*2*PI/5), Math.cos(ang - vi*2*PI/5));   // how far round from its face corner: of a doubled corner's two eyes, it takes the one on its own side
+      w.anchors.push({ f:a.f, k:a.k, loc:a.loc, vi, off }); a.f.addEar(a.k);
     });
-    w.obj = new T.Group(); const usedCorners = new Set(w.anchors.map(an => an.vi)); w.horn = vib ? new HornA(usedCorners) : new HornB(usedCorners);
+    w.obj = new T.Group(); const usedCorners = new Map(); w.anchors.forEach(an => usedCorners.set(an.vi, (usedCorners.get(an.vi) || 0) + 1)); w.horn = vib ? new HornA(usedCorners) : new HornB(usedCorners);
     w.horn.position.z = -w.horn.reach; w.puck = w.horn.kind.puck; w.ear = w.horn.kind.ear; w.c0 = c0; w.obj.add(w.horn); root.add(w.obj);
-    // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a jointed arm (see the swivel arms), so
+    // Each spoke is a hollow 10 mm tube with the optical fibre inside, and ends in a two-axle joint on a turret (see the turrets), so
     // the fibre loops through each joint and on into the frame or the horn. A pair of spokes runs
     // from the front and back of a tile's spoke ear to the front and back of the ear on a face corner, with a joint at each of
     // the four ends: the horn's face has a rim of its own, just like the tile. The fibre runs on through
     // the tile and its hollow edge hinges to the front tile, and down the mast to the core. Every spoke reaches a tile,
     // so each horn has several paths home: lose one and the signal takes another.
     // named by where they are: the horn they serve, the tile corner or face corner they sit on, front (+z) or back
-    // Each end of a spoke: a swivel arm on the end of the eye's barrel (t0 on the tile's, in the tile's frame; h0 on the
-    // face ear's, in the horn's frame) and the spoke's end link in the drum at the arm's tip. A face corner that takes two anchors stacks
-    // their two arms on its barrel, one above the other (j).
+    // Each end of a spoke: a turret on the end of an eye (on the tile's ear, in the tile's frame; on the face's ear, in the
+    // horn's), and the spoke's end link in its yoke. A back turret stands upside down, facing away from the ear as the
+    // front one does. c: where its axles cross, which the spoke's line runs through. A face corner that takes two anchors
+    // has an eye for each, side by side, each anchor on the eye on its own side.
     const side = s => s ? 'front' : 'back', at = an => `${an.f.name} corner ${an.k + 1}`, reach = w.horn.reach;
-    const arm = (parent, p, label) => { const g = new T.Group(), m = tag(new T.Mesh(armGeo.solid, fillMat), 'Swivel arm', 'Swivel arm, ' + label, w.horn);
-      m.userData.key = 'web'; m.edges = new T.LineSegments(armGeo.lines, lineMat('web')); g.add(m, m.edges); g.position.copy(p); parent.add(g); return g; };
-    // the spoke's end link turns in the arm's tip drum, so it hangs from the arm and tilts about the drum's axis (the arm's y)
-    const lug = (arm, label) => { const g = new T.Group(), m = tag(new T.Mesh(lugGeo.solid, fillMat), 'Spoke end', 'Spoke end, ' + label, w.horn);
-      m.userData.key = 'web'; m.edges = new T.LineSegments(lugGeo.lines, lineMat('web')); g.add(m, m.edges); g.position.x = ARM_L; arm.add(g); return g; };
+    const turret = (parent, p, sg, label) => {
+      const g = new T.Group(), f = new T.Group(), m = tag(new T.Mesh(turretGeo.solid, fillMat), 'Spoke turret', 'Spoke turret, ' + label, w.horn);
+      m.userData.key = 'web'; m.edges = new T.LineSegments(turretGeo.lines, lineMat('web')); f.add(m, m.edges); f.rotation.x = sg > 0 ? 0 : PI;
+      const e = new T.Group(), em = tag(new T.Mesh(endGeo.solid, fillMat), 'Spoke end', 'Spoke end, ' + label, w.horn);
+      em.userData.key = 'web'; em.edges = new T.LineSegments(endGeo.lines, lineMat('web')); e.add(em, em.edges); e.position.z = YOKE_Z; f.add(e);
+      g.add(f); g.position.copy(p); parent.add(g); return { turret:g, end:e, sg }; };
     w.anchors.forEach(an => {
-      const mates = w.anchors.filter(x => x.vi === an.vi), j = mates.indexOf(an), face = `face corner ${an.vi + 1}${mates.length > 1 ? ' to ' + at(an) : ''}`;
-      an.ends = [0, 1].map(s => { const sg = s ? 1 : -1, e = {
-          t0:an.loc.clone().setZ(sg*(MOUNT.EAR_Z + ARM_T/2)),
-          h0:pentCorner(an.vi, w.ear).setZ(s ? PUCK_H + EAR_UP + ARM_T/2 + j*ARM_T : -EAR_UP - ARM_T/2 - j*ARM_T) };
-        e.armT = arm(an.f.obj, e.t0, `${at(an)}, ${side(s)}`); e.lugT = lug(e.armT, `${at(an)}, ${side(s)}`);
-        e.armH = arm(w.horn, e.h0.clone().setZ(e.h0.z + reach), `${face}, ${side(s)}`); e.lugH = lug(e.armH, `${face}, ${side(s)}`);
+      const mates = w.anchors.filter(x => x.vi === an.vi).sort((x, y) => x.off - y.off), j = mates.indexOf(an), face = `face corner ${an.vi + 1}${mates.length > 1 ? ' to ' + at(an) : ''}`;
+      const eye = w.horn.kind.eyeAt(an.vi, j, mates.length);
+      an.ends = [0, 1].map(s => { const sg = s ? 1 : -1, tz = sg*MOUNT.EAR_Z, hz = s ? PUCK_H + EAR_UP : -EAR_UP;   // the eyes' faces
+        const e = { cT:an.loc.clone().setZ(tz + sg*YOKE_Z), cH:eye.clone().setZ(hz + sg*YOKE_Z) };
+        e.T = turret(an.f.obj, an.loc.clone().setZ(tz), sg, `${at(an)}, ${side(s)}`);
+        e.H = turret(w.horn, eye.clone().setZ(hz + reach), sg, `${face}, ${side(s)}`);
         return e; });
       for (let s = 0; s < 2; s++){
         const sp = part('web', spokeGeo, { part:'Spoke', label:`Spoke, ${at(an)} to face corner ${an.vi + 1}, ${side(s)}`, owner:w.horn }); w.wires.push(sp); root.add(sp);
@@ -955,29 +971,25 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       const ph = Math.atan2(sy, sx);
       tmp.copy(ex).multiplyScalar(Math.cos(ph)).addScaledVector(ey, Math.sin(ph));
       w.obj.quaternion.setFromRotationMatrix(hb.makeBasis(tmp, tmp2.crossVectors(n, tmp), n));
-      // two spokes per anchor: front edge to front edge and back edge to back edge, tip drum to tip drum. Each arm turns
-      // on its barrel so that the far end of its spoke lies in the plane its spoke tilts in; three times round, since each
-      // end moves the other's aim a little. Each end link tilts in its drum to lie along the spoke, and the tube runs from
-      // one end link's face to the other's
+      // two spokes per anchor: front edge to front edge and back edge to back edge, crossing to crossing. Each turret
+      // turns to face the other end, each end link tilts to point at it, and the tube runs from one end link's face to
+      // the other's
       w.anchors.forEach((an, i) => an.ends.forEach((e, s) => {
         const qT = an.f.obj.quaternion, qH = w.obj.quaternion;
-        aT.copy(e.t0).applyQuaternion(qT).add(an.f.obj.position); aH.copy(e.h0).applyQuaternion(qH).add(P);
-        bT.copy(aT); bH.copy(aH);
-        for (let it = 0; it < 3; it++){ swing(e.armT, e.lugT, qT, aT, bH, bT); swing(e.armH, e.lugH, qH, aH, bT, bH); }
-        wd.subVectors(bH, bT).normalize();
-        setWire(w.wires[2*i + s], tmp.copy(bT).addScaledVector(wd, LUG_L), tmp2.copy(bH).addScaledVector(wd, -LUG_L));
+        cT.copy(e.cT).applyQuaternion(qT).add(an.f.obj.position); cH.copy(e.cH).applyQuaternion(qH).add(P);
+        aim(e.T, qT, cT, cH); aim(e.H, qH, cH, cT);
+        wd.subVectors(cH, cT).normalize();
+        setWire(w.wires[2*i + s], tmp.copy(cT).addScaledVector(wd, END_L), tmp2.copy(cH).addScaledVector(wd, -END_L));
       }));
     });
   }
-  // Turn an arm about its barrel (local z) until the point far lies in the plane its spoke tilts in, SPOKE_Y to the arm's
-  // side; tilt its end link in the tip drum to point at far; and give the point on the spoke's line at the drum (out)
-  const aT = new V3(), aH = new V3(), bT = new V3(), bH = new V3(), sd = new V3(), sq = new T.Quaternion();
-  function swing(arm, lug, q, axis, far, out){
-    sd.subVectors(far, axis).applyQuaternion(sq.copy(q).invert());
-    const rho = Math.max(Math.hypot(sd.x, sd.y), SPOKE_Y + 1e-6), a = Math.atan2(sd.y, sd.x) - Math.asin(SPOKE_Y/rho), c = Math.cos(a), s = Math.sin(a);
-    arm.rotation.z = a;
-    lug.rotation.y = -Math.atan2(sd.z, Math.sqrt(rho*rho - SPOKE_Y*SPOKE_Y) - ARM_L);   // about the drum's axis: the end link's +x onto the spoke
-    out.copy(axis).add(sd.set(c*ARM_L - s*SPOKE_Y, s*ARM_L + c*SPOKE_Y, 0).applyQuaternion(q));
+  // turn a turret on its eye (local z) to face the point far, and tilt its end link on the cross axle to point at far
+  // too. c: where its axles cross; q: its ear's attitude. A back turret is upside down, so its end link tilts the other way
+  const cT = new V3(), cH = new V3(), sd = new V3(), sq = new T.Quaternion();
+  function aim(j, q, c, far){
+    sd.subVectors(far, c).applyQuaternion(sq.copy(q).invert());
+    j.turret.rotation.z = Math.atan2(sd.y, sd.x);
+    j.end.rotation.y = -Math.atan2(j.sg*sd.z, Math.hypot(sd.x, sd.y));
   }
   const hingeGeo = zCyl(0.007, 0.007, 0.24, 6);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
   order.forEach(f => { if (!f.par) return;
@@ -1167,10 +1179,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and a spoke ear beside each corner a horn\'s spokes land on. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
     ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel and its six actuators, and rides straight out of the ring on the lifts.'],
     ['lift',  'Lift actuators ×57', 'Three per tile, on the three sides between the delta\'s arms, each on a tongue reaching in from the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
-    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket and cylinder, and a shaft up through the arm to a wrist under a whiffle: two drums at right angles, a socket on the whiffle, a wrist link between them and the shaft\'s end link. They only aim: they tip the panel to the dish\'s slope.'],
+    ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket with the cylinder hanging in a gimbal between its legs, and a shaft up through the arm to a cube under a whiffle, held on one axle by a socket\'s arms and on the other by the shaft\'s yoke. Each joint\'s two axles cross on the actuator\'s line, so it only ever pushes or pulls along it. They only aim: they tip the panel to the dish\'s slope.'],
     ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
-    ['web',   'Port webs: spokes and their joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and each end is a small jointed arm with a drum at each joint: a swivel arm turning on the ear\'s barrel, and the spoke\'s end link turning in a drum at the arm\'s tip. The optical fibre loops through each joint into the frames. Every spoke is a signal path, so each horn has several ways home.'],
+    ['web',   'Port webs: spokes and their joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and each end turns on two axles crossing on the spoke\'s line: a turret on the ear\'s eye, and the spoke\'s end link in a yoke on the turret, its drum between the yoke\'s two, so the spoke only ever pushes or pulls straight through the joint. The optical fibre loops through each joint into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face that a spoke lands on. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
     ['core',  'AEPEC core', 'A closed vessel round a small extraplanar singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons bear on each other edge to edge, with a locked hinge on each of the 30 seams, so the vessel is one rigid piece and the spine and mast bolt straight to it. The plates look inward and hold the singularity at the centre, weightless and touching nothing. The 12 pentagons stand open. Unlock the seams with a tool and the vessel unfolds for service, as the shell does.'],
