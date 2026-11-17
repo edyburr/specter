@@ -302,13 +302,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const upright = (prof, y0, y1) => new T.ExtrudeGeometry(new T.Shape(prof.map(([x, z]) => new V2(x, z))), { depth:y1 - y0, bevelEnabled:false }).rotateX(PI/2).translate(0, y1, 0);
     const move = (x, y, z) => M4().makeTranslation(x, y, z);
     const ZB = -FR_TH/2, ZT = FR_TH/2, PB = -PL_TH/2;       // frame underside and top; panel back, in the panel's own frame
-    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.228, TAB_END = 0.275, LIFT_R = 0.25, LIFT_L = 0.085;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies
+    const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.228, TAB_END = 0.275, LIFT_R = 0.25, LIFT_L = 0.085, LIFT_CO = 0.012;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies, their collars
     const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
     const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
     const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
     const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2, SOCK_H = 0.007;   // whiffles: inner foot, middle of the four
     const WH_HALF = 0.078, WH_WI = 0.024, WH_WO = 0.084, WH_CH = 0.026;   // whiffle: half its length, half-width at the narrow end and at the base, how far the base corners are cut back
-    const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.017;   // actuators
+    const BOT_T = 0.04, ACT_TILT = 12*deg, BALL = 0.011, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.012, HUB_H = 0.008;   // actuators
     const HG_R = 0.014, HG_T0 = 0.004, HG_T1 = 0.06, MOT_R = 0.02, MOT_L = 0.045;   // hinge halves: barrel, lug span off the centre line, drive
 
     // ---- frame: ring, delta frame, hinge halves ----
@@ -323,7 +323,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       frame.push([slab([at(RING_I, -TG_W), at(TG_END, -0.05), at(TG_END, 0.05), at(RING_I, TG_W)], null, ZB, FR_TH/2)]);
       delta.push([slab([at(DL_HEX, -0.075), at(TAB_END, -0.045), at(TAB_END, 0.045), at(DL_HEX, 0.075)], null, 0, FR_TH/2)]);
       const q = at(LIFT_R, 0); lifts.push(new V3(q.x, q.y, 0));
-      lift.push([zCyl(0.02, 0.02, LIFT_L, 6), move(q.x, q.y, ZB - LIFT_L/2), 40], [zCyl(0.027, 0.027, 0.012, 6), move(q.x, q.y, ZB - 0.006), 40]); });
+      // the body hangs from the collar's underside, not up inside it, so the line where they meet is the body's own top edge
+      lift.push([zCyl(0.02, 0.02, LIFT_L - LIFT_CO, 6), move(q.x, q.y, ZB - (LIFT_L + LIFT_CO)/2), 40], [zCyl(0.027, 0.027, LIFT_CO, 6), move(q.x, q.y, ZB - LIFT_CO/2), 40]); });
     // spoke ears: beside each corner, a tapered tab off the ring's port edge (the edge that faces a horn, not a tile), ending
     // in a hex eye that stands proud of the ring top and bottom. A port-web spoke's ball joint seats on each end of the eye,
     // and the horn's fibre enters the ring through it.
@@ -366,7 +367,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       for (let i = 0; i < pos.count; i++) if (pos.getZ(i) > -1e-6) pos.setZ(i, -pos.getY(i)*tn);
       return g; };
     const cyl = zCyl(BODY_CYL, BODY_CYL, BODY_L - U_T - 0.01, 6).translate(0, 0, -(BODY_L - U_T + 0.01)/2);
-    const hub = zCyl(HUB_R, HUB_R, U_T + 0.008, 6).translate(0, 0, -BODY_L + U_T/2);
+    const hub = zCyl(HUB_R, HUB_R, HUB_H, 6).translate(0, 0, -BODY_L - HUB_H/2);   // a boss under the bracket's base, inside its footprint, meeting it face to face
     const sockets = [];
     BASE.forEach(c => [1, -1].forEach(sg => { const u = dir3(c, 1), t = dir3(c + PI/2, 1);
       const ax = new V3(0, 0, Math.cos(ACT_TILT)).addScaledVector(t, -sg*Math.sin(ACT_TILT));
@@ -622,8 +623,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the ball takes the spoke's tilt up or down, and the spoke leaves the ball heading away from the ear. The ball
   // itself never turns; it is a ball. The fibre runs through the barrel, along the arm and through the ball's bore.
   const ARM_L = 0.032, ARM_T = 0.012;   // barrel axis to ball centre; the arm's hub, along the barrel
-  const armGeo = done(fuse([[zCyl(0.011, 0.011, ARM_T, 6), null, 40],
-    [new T.CylinderGeometry(0.005, 0.005, ARM_L - 0.6*BALL_R, 6).rotateZ(-PI/2).translate((ARM_L - 0.6*BALL_R)/2, 0, 0), null, 40]]));
+  // the hub has a flat facing along the arm, and the rod starts on it, so the rod's own end traces where the two meet
+  const ARM_HUB = 0.011, ARM_FLAT = ARM_HUB*Math.sqrt(3)/2, ARM_ROD = ARM_L - 0.6*BALL_R - ARM_FLAT;
+  const armGeo = done(fuse([[zCyl(ARM_HUB, ARM_HUB, ARM_T, 6), null, 40],
+    [new T.CylinderGeometry(0.005, 0.005, ARM_ROD, 6).rotateZ(-PI/2).translate(ARM_FLAT + ARM_ROD/2, 0, 0), null, 40]]));
 
   // ---- horns. One Horn class, two types; every horn on the craft is a HornA or a HornB. ----
   // Each horn is a receive array of its own, built like a microphone. From the front: the face, a pentagonal puck that
