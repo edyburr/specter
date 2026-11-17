@@ -401,6 +401,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         if (!(di ? (dj ? (i + j) % 2 === 0 : j % 2 === 0) : i % 2 === 0) && !pinned(a) && !pinned(b)) continue;
         pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }
+    // the ribs round the rim are the panel's side wall: draw its six corners down from the face sheet, as the sheet's own are
+    for (let k = 0; k < 6; k++){ const x = Math.cos(k*PI/3)*PL_R, y = Math.sin(k*PI/3)*PL_R; pf.edge.push(x,y,PB, x,y,PB + RIB_H); }
     return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, BALL, ears, earGeo, EAR_Z };
   })();
   class Tile {
