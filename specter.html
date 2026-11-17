@@ -169,7 +169,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
       </dl>
     </section>
 
-    <details class="note"><summary>Design notes</summary><p>Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke end turns on two axles that cross on the spoke's own line, and no ball: a turret turns on the ear's eye to follow the spoke round, and the spoke's end link tilts in a yoke on the turret, its drum between the yoke's two so the three read as one drum, while the round tube rolls in its telescoping sleeve. A joint that turns freely can only carry a load through its axles, so the spoke only ever pushes or pulls straight through the crossing. The fibre comes up the hollow eye into the turret and loops once round the yoke's axle, so nothing needs a rotating seal, and on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Dots on the panels stand in for the real element lattice, which is far denser.</p></details>
+    <details class="note"><summary>Design notes</summary><p>Stowed, the shell is a truncated icosahedron: 19 hexagonal faces are array tiles, the 20th is the aft cap, and the 12 pentagonal gaps hold the receive horns. Nineteen is one centre tile plus rings of 6 and 12, which is exactly what fills the 5 m aperture from the hull derivation; a 20th tile would have nowhere to go. Each tile is two layers, after the JWST mirror segments: a fold frame, ribbed open at the back, which is the structure, and a flat panel carrying the elements, held above it on six actuators. The 19 frames unfold as a net, hinged on shared edges, and latch flat: hexagons only share alternate edges, so the net is a three-armed pinwheel with open notches between the arms. Same radiating area as a filled array, so the same on-axis intensity; the main lobe is roughly 30% narrower but holds about half the power instead of 83%, with the rest in sidelobes. The frames only ever go flat; the face takes its shape from the actuators, which tip each panel in proportion to its distance from the axis, so the panel normals meet at one point on the axis for a concave face or spread from one behind it for convex. The panels do not also move up or down to the depth of a true dish: the elements make up that difference in phase. Each horn hangs at the centre of its gap on hollow 10 mm spokes that telescope and swivel at their ends, a pair from the front and back of each frame corner round the gap to the front and back of a corner of the horn's pentagonal face; as the petal opens each gap becomes an empty hexagonal cell and the horn stays at its centre. Each horn is a receive array of its own: the face carries the transducer elements and the body behind it the electronics. Its signal travels as light, in optical fibre inside the spokes: every spoke end turns on two axles that cross on the spoke's own line, and no ball: a turret turns on the ear's eye to follow the spoke round, and the spoke's end link tilts in a yoke on the turret, its drum between the yoke's two so the three read as one drum, while the round tube rolls in its telescoping sleeve. A joint that turns freely can only carry a load through its axles, so the spoke only ever pushes or pulls straight through the crossing. The fibre comes up the hollow eye into the turret and loops once round the yoke's axle, so nothing needs a rotating seal, and on into the frames and through their hollow edge hinges to the front tile and down the centre mast to the core. Every spoke reaches a frame, so each horn has several paths home, and no cable ever crosses to a moving panel but its own short service loop. Plates are soft polygons: corners clipped and edges bevelled, so each draws a second line inside its rim and nothing comes to a point; round is kept for what turns, so hinge barrels, pins and actuator cylinders are twelve-sided drums, while shafts that only slide stay hexagonal. Dots on the panels stand in for the real element lattice, which is far denser.</p></details>
   </aside>
 </div>
 
@@ -278,6 +278,35 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const lump = (key, name, items) => { const f = done(fuse(items)), g = new T.Group(), m = tag(new T.Mesh(f.solid, fillMat), name); m.userData.key = key;
     m.edges = new T.LineSegments(f.lines, lineMat(key)); g.add(m, m.edges); root.add(g); return g; };
 
+  // ---- soft polygons. A plate is never a bare prism: its corners are clipped and its edges bevelled, so every plate
+  // draws a second line just inside its rim, and no corner comes to a point. ----
+  // loft: a solid through a stack of outlines, [points, z] from the bottom up, every outline with as many points as the
+  // last, capped at both ends. holes: cut straight through, bottom to top.
+  const loft = (rings, holes) => { const pos = [], P = (q, z) => pos.push(q.x, q.y, z), n = rings[0][0].length;
+    for (let r = 0; r + 1 < rings.length; r++){ const [a, za] = rings[r], [b, zb] = rings[r + 1];
+      for (let i = 0; i < n; i++){ const j = (i + 1) % n; P(a[i], za); P(a[j], za); P(b[j], zb); P(a[i], za); P(b[j], zb); P(b[i], zb); } }
+    holes = holes || [];
+    const z0 = rings[0][1], z1 = rings[rings.length - 1][1];
+    [[rings[0][0], z0], [rings[rings.length - 1][0], z1]].forEach(([c, z]) => { const all = c.concat(...holes);
+      T.ShapeUtils.triangulateShape(c, holes).forEach(t => t.forEach(i => P(all[i], z))); });
+    holes.forEach(h => h.forEach((a, i) => { const b = h[(i + 1) % h.length]; P(a, z0); P(b, z0); P(b, z1); P(a, z0); P(b, z1); P(a, z1); }));
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g; };
+  // an outline moved in by d on every side
+  const inset = (pts, d) => pts.map((p, i) => { const n = pts.length, a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    const e1 = new T.Vector2().subVectors(p, a).normalize(), e2 = new T.Vector2().subVectors(b, p).normalize();
+    const n1 = new T.Vector2(e1.y, -e1.x), n2 = new T.Vector2(e2.y, -e2.x), k = d/(1 + n1.dot(n2));
+    return new T.Vector2(p.x - (n1.x + n2.x)*k, p.y - (n1.y + n2.y)*k); });
+  // a plate from an outline, z0 to z0 + h, its top and bottom edges bevelled: top and bot are [how far in, how far down]
+  const soft = (pts, z0, h, top, bot, holes) => { pts = pts.map(q => new T.Vector2(q.x, q.y)); if (T.ShapeUtils.area(pts) < 0) pts.reverse();
+    const rings = [];
+    if (bot) rings.push([inset(pts, bot[0]), z0]);
+    const za = z0 + (bot ? bot[1] : 0), zb = z0 + h - (top ? top[1] : 0);
+    rings.push([pts, za]); if (zb > za + 1e-9) rings.push([pts, zb]);
+    if (top) rings.push([inset(pts, top[0]), z0 + h]);
+    return loft(rings, holes); };
+  const polyPts = (n, r, a0) => Array.from({ length:n }, (_, i) => new T.Vector2(Math.cos((a0 || 0) + 2*PI*i/n)*r, Math.sin((a0 || 0) + 2*PI*i/n)*r));
+  const hex30 = r => polyPts(6, r, PI/6);   // a hexagon with its flats on the axes, as the mast and spine have theirs
+
   // ---- joints. Round only where something turns on it: every joint is a drum, split where its parts turn on each other,
   // and the links between joints are square. No balls. Nothing here has a motor in its joints to hold a turn, so every
   // load must run through the axles: a strut's two-axle joints have their axles crossing on the strut's own line. ----
@@ -319,7 +348,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     const AP = A*S3/2, RING_O = R*S3/2, RING_W = 0.03, RING_I = RING_O - RING_W, TG_W = 0.1, TG_END = 0.228, TAB_END = 0.275, LIFT_R = 0.25, LIFT_L = 0.085, LIFT_CO = 0.012;   // hinge axis; ring outer and inner inradius; a tongue's half-width at the ring and how far in it reaches; how far out a delta arm's tab reaches; lift actuators: where they stand, how long their bodies, their collars
     const BASE = [30, 150, 270].map(x => x*deg);            // toward the three neighbouring tiles (the tile's frame is turned to make it so)
     const DL_HEX = 0.22, DL_END = 0.358, DL_HOLE = 0.09, DL_TIP = 0.07, WIN_M = 0.045, WIN_RI = 0.27, WIN_KI = 0.012;   // delta frame, as on the bench
-    const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N;   // panel: face sheet, isogrid ribs behind it
+    const FS_TH = 0.006, RIB_H = PL_TH - FS_TH, GRID_N = 8, GS = PL_R/GRID_N, BEV = 0.012;   // panel: face sheet, isogrid ribs behind it; how far in the face sheet's edge is bevelled
     const H_W = 0.022, FOOT_H = 0.008, WH_R1 = 2*S3*GS, WH_R2 = WH_R1 + GS*S3/2;   // whiffles: inner foot, middle of the four
     const WH_HALF = 0.078, WH_WI = 0.024, WH_WO = 0.084, WH_CH = 0.026;   // whiffle: half its length, half-width at the narrow end and at the base, how far the base corners are cut back
     const BOT_T = 0.04, ACT_TILT = 12*deg, BODY_L = 0.085, BODY_D = 0.028, BODY_CYL = 0.010, U_T = 0.009, HUB_R = 0.012, HUB_H = 0.008;   // actuators
@@ -368,9 +397,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     delta.push([slab(deltaOut, [hexPts(DL_HOLE), ...armWindows], ZB, FR_TH)]);
     // half a hinge opposite each arm: lug and barrel on the hinge axis (the shell's edge), drive beyond it. The neighbour's half
     // lands on the other side of the centre line, so the two interleave on one pin. Lug and barrel are one piece, a
-    // knuckle: its section is the lug running from the ring into the hex barrel round the axis, so no seam crosses its ends.
-    const HG_H = HG_R*Math.sqrt(3)/2;   // the barrel's hex, corner up: half its width
-    const knuckle = upright([[RING_O, ZB], [AP - HG_H, ZB - HG_R/2], [AP, ZB - HG_R], [AP + HG_H, ZB - HG_R/2], [AP + HG_H, ZB + HG_R/2], [AP, ZB + HG_R], [RING_O, ZT]], HG_T0, HG_T1);
+    // knuckle: its section is the lug running from the ring into the barrel, a drum round the axis, so no seam crosses its ends.
+    // the barrel turns on its pin, so it is a drum: its section runs round from under the lug to the top
+    const knuckle = upright([[RING_O, ZB], ...Array.from({ length:DRUM_N*2/3 + 1 }, (_, i) => { const a = (210 + i*360/DRUM_N)*deg; return [AP + HG_R*Math.cos(a), ZB + HG_R*Math.sin(a)]; }), [RING_O, ZT]], HG_T0, HG_T1);
     const drive = new T.CylinderGeometry(MOT_R, MOT_R, MOT_L, 6).translate(AP, HG_T1 + MOT_L/2, ZB);
     BASE.forEach(c => { const m = M4().makeRotationZ(c); frame.push([knuckle, m], [drive, m, 40]); });
     // the panel's isogrid: its nodes, and the node nearest a point
@@ -401,8 +430,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     // each side of the collar to the ring (y), capped on the ring's outer faces.
     const sq = r => [[-r, -r], [r, -r], [r, r], [-r, r]].map(([x, y]) => new V2(x, y));
     const gRing = done(fuse([[slab(sq(G_RO), [sq(G_RI)], -G_T, 2*G_T), null, 20], [capX(G_RO, xLeg, G_AX), null, 20], [capX(-xLeg, -G_RO, G_AX), null, 20]]));
-    const gBody = done(fuse([[zCyl(BODY_CYL, BODY_CYL, -COL_T - CYL_BOT, 6).translate(0, 0, (CYL_BOT - COL_T)/2), null, 40],
-      [zCyl(BODY_CYL, BODY_CYL, CYL_TOP - COL_T, 6).translate(0, 0, (CYL_TOP + COL_T)/2), null, 40], [new T.BoxGeometry(2*COL, 2*COL, 2*COL_T), null, 20],
+    const gBody = done(fuse([[zCyl(BODY_CYL, BODY_CYL, -COL_T - CYL_BOT, DRUM_N).translate(0, 0, (CYL_BOT - COL_T)/2), null, 20],
+      [zCyl(BODY_CYL, BODY_CYL, CYL_TOP - COL_T, DRUM_N).translate(0, 0, (CYL_TOP + COL_T)/2), null, 20], [new T.BoxGeometry(2*COL, 2*COL, 2*COL_T), null, 20],
       [capY(COL, G_RI, G_AX), null, 20], [capY(-G_RI, -COL, G_AX), null, 20], [capY(G_RO, G_RO + CAP_T), null, 20], [capY(-G_RO - CAP_T, -G_RO), null, 20]]));
     const gCaps = [[capX(xLeg + U_T, xLeg + U_T + CAP_T), M4().makeTranslation(0, 0, GZ)], [capX(-xLeg - U_T - CAP_T, -xLeg - U_T), M4().makeTranslation(0, 0, GZ)]];
     // The top joint, in its frame from the crossing: X across the actuator pair's arm (the socket's axle), Y along it
@@ -427,7 +456,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
     // ---- panel: face sheet, isogrid ribs, whiffles with their feet and the actuators' sockets ----
     // the face sheet, outlined with the rim ribs under it as one slab: the panel's side reads as one wall, no seam
-    const panel = [[hexPrism(PL_R, FS_TH), move(0, 0, PL_TH/2 - FS_TH/2), 'solid'], [new T.EdgesGeometry(hexPrism(PL_R, PL_TH)), null, 'lines']];
+    // The panel is a soft hexagon: each corner is clipped one grid step back along both edges, so the cut runs from rim
+    // node to rim node and a rib closes it; and the face sheet's edge is bevelled, so the face stands a step inside the wall.
+    const panelOut = []; for (let k = 0; k < 6; k++){ const C = dir2(k*PI/3).multiplyScalar(PL_R);
+      for (const d of [-1, 1]) panelOut.push(C.clone().add(dir2((k + d)*PI/3).multiplyScalar(PL_R).sub(C).normalize().multiplyScalar(GS))); }
+    const panel = [[soft(panelOut, PL_TH/2 - FS_TH, FS_TH, [BEV, FS_TH]), null, 'solid'], [new T.EdgesGeometry(soft(panelOut, PB, PL_TH, [BEV, FS_TH]), 20), null, 'lines']];
     // A whiffle is a trapezoid, narrow end toward the panel's centre, centred along its length on its pair of actuators,
     // with the two corners of its wide base cut back. The pair lands on the middle of one edge of the isogrid, so the
     // four nodes round that edge (its two ends, and the far corner of the triangle on either side) make a diamond
@@ -448,14 +481,17 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     BASE.forEach((c, i) => pins.push(...whiffle(c, i).feet));
     sockets.forEach(p => pins.push(snap(p)));
     const pinned = n => pins.some(q => Math.hypot(q.x - n.x, q.y - n.y) < GS*1.01);   // the node or a neighbour of it holds a part
-    for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j))
-      for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
+    const corner = (i, j) => (Math.abs(i) === GRID_N) + (Math.abs(j) === GRID_N) + (Math.abs(i + j) === GRID_N) > 1;   // the six nodes the clipped corners take away
+    const rib = (a, b) => { const z0 = PB, z1 = PB + RIB_H; pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); };
+    for (let k = 0; k < 6; k++) rib(panelOut[2*k], panelOut[2*k + 1]);   // the rib across each clipped corner
+    for (let i = -GRID_N; i <= GRID_N; i++) for (let j = -GRID_N; j <= GRID_N; j++) if (inHex(i, j) && !corner(i, j))
+      for (const [di, dj] of [[1,0],[0,1],[-1,1]]) if (inHex(i + di, j + dj) && !corner(i + di, j + dj)){ const a = gridNode(i, j), b = gridNode(i + di, j + dj), z0 = PB, z1 = PB + RIB_H;
         if (!(di ? (dj ? (i + j) % 2 === 0 : j % 2 === 0) : i % 2 === 0) && !pinned(a) && !pinned(b)) continue;
-        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, gRing, gBody, cuBlock, cuYoke, ROD:{ bot:CYL_TOP, top:CU_DN + CU_BR }, ears, earGeo, EAR_Z };
+        pf.pos.push(a.x,a.y,z0, b.x,b.y,z0, b.x,b.y,z1, a.x,a.y,z0, b.x,b.y,z1, a.x,a.y,z1); pf.edge.push(a.x,a.y,z0, b.x,b.y,z0); }    return { frame:done(fuse(frame)), delta:done(fuse(delta)), lift:done(fuse(lift)), lifts, act:done(fuse(act)), panel:done(pf), legs, gRing, gBody, cuBlock, cuYoke, ROD:{ bot:CYL_TOP, top:CU_DN + CU_BR }, ears, earGeo, EAR_Z, panelOut, panelR:panelOut[0].length() };
   })();
   class Tile {
     static inset = new T.BufferGeometry().setFromPoints(
-      Array.from({ length:7 }, (_, i) => new V3(Math.cos(i*PI/3)*PL_R*0.9, Math.sin(i*PI/3)*PL_R*0.9, PL_TH/2 + 0.001)));
+      Array.from({ length:13 }, (_, i) => { const q = MOUNT.panelOut[i % 12]; return new V3(q.x*0.9, q.y*0.9, PL_TH/2 + 0.001); }));   // a panel line, following the clipped outline
     static dots = (function(){   // stand-in for the element lattice
       const pts = [], pitch = DOT_PITCH, Rm = PL_R*0.84, s3 = Math.sqrt(3);
       for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++){
@@ -597,7 +633,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         for (const e of [-HL/2, HL/2]) seg.push(...P(0, e, 0).toArray(), ...P(h[0], e, h[1]).toArray());   // across the end
         seg.push(...P(h[0], -HL/2, h[1]).toArray(), ...P(h[0], HL/2, h[1]).toArray()); });                  // along the face
       items.push([new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(seg, 3)), null, 'lines']); }
-    items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // the singularity's bound
+    // the singularity's bound: a crystal, a hexagonal prism drawn out to a blunt point at each end, its long axis the craft's
+    items.push([loft([[hex30(0.02), -0.13], [hex30(0.06), -0.055], [hex30(0.06), 0.055], [hex30(0.02), 0.13]]), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 20]);
     lump('core', 'Core', items);
   })();
 
@@ -631,7 +668,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const Z_CORE_F = Z_CORE + CORE_S*FACE_IN, Z_CORE_A = Z_CORE - CORE_S*FACE_IN, REF_H = 0.12;
   const axial = (key, label, r, z0, z1) => { const o = part(key, zCyl(r, r, z1 - z0, 6), { label }); o.position.z = (z0 + z1)/2; root.add(o); return o; };
   // inertial reference: a free-floating proof mass in a housing on the inside of the aft cap, as far from the core as the shell allows
-  axial('aft', 'Inertial reference', 0.18, Z_AFT, Z_AFT + REF_H);
+  // the housing steps in toward the spine: a wide base on the cap, a narrower neck the spine starts from, both bevelled
+  lump('aft', 'Inertial reference', [[soft(hex30(0.18), Z_AFT, 0.075, [0.022, 0.022])], [soft(hex30(0.1), Z_AFT + 0.075, REF_H - 0.075, [0.012, 0.012])]]);
   axial('rad', 'Spine', 0.05, Z_AFT + REF_H, Z_CORE_A - CORE_T/2);   // spine: isolation strut from the housing to the core, the capacitor cells stand round it
 
   // ---- capacitor bank ----
@@ -658,7 +696,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // The calyx, back where it earns its place: one flat hexagonal disc on the mast, midway between the core and the processors. Whatever the
   // core throws forward meets it first, so the processors sit in its shadow. Only the mast passes through.
   (() => { const hex = r => Array.from({ length:6 }, (_, i) => new T.Vector2(Math.cos((30 + 60*i)*PI/180)*r, Math.sin((30 + 60*i)*PI/180)*r));
-    lump('shield', 'Shadow shield', [[slab(hex(0.3), [hex(0.04)], Z_CORE_F + 0.075, 0.02)]]); })();   // the hole is cut to the mast
+    const z = Z_CORE_F + 0.075, th = 0.02, b = [0.008, 0.008], hub = [0.006, 0.006];   // bevelled to a blunt rim; a hub on each face grips the mast
+    lump('shield', 'Shadow shield', [[soft(hex(0.3), z, th, b, b, [hex(0.04)])],
+      [soft(hex(0.085), z + th, 0.014, hub, null, [hex(0.04)])], [soft(hex(0.085), z - 0.014, 0.014, null, hub, [hex(0.04)])]]); })();   // the hole is cut to the mast
 
   // ---- processor cluster ----
   // The computer is a cluster: many small nodes working side by side, because the work is parallel. Nineteen tiles to
@@ -743,7 +783,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
           if (inside(x, y)) dots.push(new V3(x, y, z + 0.001));
         }
         this._shape = {
-          body: pent(this.body, this.body, this.depth),
+          // the body: a pentagonal prism drawn in at the back to a tail, and a boss on the tail's end. Centred as a plain
+          // prism of its depth would be, so the tail hangs out behind the horn's origin
+          body: (() => { const d = this.depth, p = r => polyPts(5, r), tail = 0.24*d, boss = 0.07*d;
+            return loft([[p(0.3*this.body), -d/2 - tail - boss], [p(0.3*this.body), -d/2 - tail], [p(0.58*this.body), -d/2 - tail], [p(this.body), -d/2], [p(this.body), d/2]]); })(),
           // a cooling scale: a thin pointed plate, hinged along its wide end, drawn lying along +y from the hinge
           scale: (() => { const w = this.body*Math.sin(PI/5)*0.82, L = this.depth*SCALE_L;
             return slab([[-w, 0], [w, 0], [0.62*w, 0.72*L], [0, L], [-0.62*w, 0.72*L]].map(([x, y]) => new T.Vector2(x, y)), null, 0, 0.004); })(),
@@ -983,10 +1026,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     j.turret.rotation.z = Math.atan2(sd.y, sd.x);
     j.end.rotation.y = -Math.atan2(j.sg*sd.z, Math.hypot(sd.x, sd.y));
   }
-  const hingeGeo = zCyl(0.007, 0.007, 0.24, 6);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
+  const hingeGeo = zCyl(0.007, 0.007, 0.24, DRUM_N);   // the pin through the two tiles' hinge halves; the other seams have the same halves and a launch pin that is pulled
   order.forEach(f => { if (!f.par) return;
     const inv = f.qs.clone().invert();
-    const h = part('hinge', hingeGeo, { angle:50, part:'Hinge pin', label:'Hinge pin to ' + f.par.name, owner:f });
+    const h = part('hinge', hingeGeo, { angle:20, part:'Hinge pin', label:'Hinge pin to ' + f.par.name, owner:f });
     h.position.copy(f.hP).sub(f.ps).applyQuaternion(inv);
     h.quaternion.setFromUnitVectors(new V3(0,0,1), f.hD.clone().applyQuaternion(inv));
     f.obj.add(h);
@@ -1167,18 +1210,18 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
   // ---- UI ----
   const PARTS = [
-    ['tiles', 'Array panels ×19', 'Transmit subarrays: an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
+    ['tiles', 'Array panels ×19', 'Transmit subarrays: soft hexagons, each corner clipped and the face bevelled a step inside the wall, an element face on an isogrid back, with three whiffles under it that spread the actuators\' push over the ribs. They carry no cables but a short service loop to the frame.'],
     ['frame', 'Fold frames ×19', 'The structure, after the JWST segments: a hexagonal ring on the tile\'s outline, with power and fibre running inside it, half a hinge on each side that faces another tile, and a spoke ear beside each corner a horn\'s spokes land on. It hinges, snaps flat and stays flat. Stowed, the rings are the shell.'],
     ['delta', 'Delta backplanes ×19', 'A hexagon with three arms, nested inside each ring. It carries the panel and its six actuators, and rides straight out of the ring on the lifts.'],
     ['lift',  'Lift actuators ×57', 'Three per tile, on the three sides between the delta\'s arms, each on a tongue reaching in from the ring. They only push: the delta backplane and its panel straight forward, to that tile\'s depth on the dish.'],
     ['act',   'Panel actuators ×114', 'Six per panel, in pairs under the delta backplane\'s arms: a fixed bracket with the cylinder hanging in a gimbal between its legs, and a shaft up through the arm to a cube under a whiffle, held on one axle by a socket\'s arms and on the other by the shaft\'s yoke. Each joint\'s two axles cross on the actuator\'s line, so it only ever pushes or pulls along it. They only aim: they tip the panel to the dish\'s slope.'],
-    ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass: the still point the vibrometry is measured against.'],
+    ['aft',   'Aft tile and inertial reference', 'The 20th tile never deploys. It closes the shell and looks back the way the craft came: the link home, steered by its own actuators. Behind it floats a proof mass, in a housing that steps in toward the spine: the still point the vibrometry is measured against.'],
     ['hinge', 'Hinge pins and centre mast', '18 pins, each through the hinge halves of two frames, latching at a hard stop when flat. Every tile has the same three halves; on the seams that only close in the ball they take a launch pin instead. The front frame stays fixed on the mast.'],
     ['web',   'Port webs: spokes and their joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and each end turns on two axles crossing on the spoke\'s line: a turret on the ear\'s eye, and the spoke\'s end link in a yoke on the turret, its drum between the yoke\'s two, so the spoke only ever pushes or pulls straight through the joint. The optical fibre loops through each joint into the frames. Every spoke is a signal path, so each horn has several ways home.'],
-    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face that a spoke lands on. Read the hull echo timing for heartbeat and breath.'],
+    ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body that draws in to a tail behind, with a spoke ear on each corner of the face that a spoke lands on. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
-    ['core',  'AEPEC core', 'A closed vessel round a small extraplanar singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons bear on each other edge to edge, with a locked hinge on each of the 30 seams, so the vessel is one rigid piece and the spine and mast bolt straight to it. The plates look inward and hold the singularity at the centre, weightless and touching nothing. The 12 pentagons stand open. Unlock the seams with a tool and the vessel unfolds for service, as the shell does.'],
-    ['shield', 'Shadow shield', 'One flat disc on the mast, midway between the core and the processors, which sit in its shadow.'],
+    ['core',  'AEPEC core', 'A closed vessel round a small extraplanar singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons bear on each other edge to edge, with a locked hinge on each of the 30 seams, so the vessel is one rigid piece and the spine and mast bolt straight to it. The plates look inward and hold the singularity at the centre, weightless and touching nothing; its bound is drawn as a crystal, a hexagonal prism blunt-pointed at each end along the craft\'s axis. The 12 pentagons stand open. Unlock the seams with a tool and the vessel unfolds for service, as the shell does.'],
+    ['shield', 'Shadow shield', 'One flat disc on the mast, bevelled to a blunt rim, with a hub on each face gripping the mast, midway between the core and the processors, which sit in its shadow.'],
     ['dsp',   'Processor cluster', 'The computer, an open cage round the mast where every fibre comes home: eighteen nodes on three tiers, working in parallel on nineteen tiles and twelve horns at once. Beamforming, and digitising and analysing what the horns hear.'],
     ['cap',   'Capacitor bank', 'Six banded cells round the spine, in a cage of rails with a bus deck at each end. The core is small and only trickles power; the cells store it over days and the array spends it in one hit. If they can no longer fill, the craft never opens.'],
     ['rad',   'Spine', 'Isolation strut from the core to the inertial reference, so the still point stays still.']
@@ -1213,7 +1256,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   // the open net spans the tile centre furthest out, plus half a tile either side
   document.getElementById('d-ap').textContent = (2*(Math.max(...order.map(f => Math.hypot(f.flat.x, f.flat.y))) + 0.5)).toFixed(1) + ' m, thinned';
   // stowed: the furthest panel corner from the shell centre
-  document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, PL_R)).toFixed(1) + ' m';
+  document.getElementById('d-sh').textContent = '⌀ ' + (2*Math.hypot(FACE_IN + FR_TH + GAP + PL_TH, MOUNT.panelR)).toFixed(1) + ' m';
   resize(); resetView(); paint();
   // come back to the part selected last time: the address first, then this browser's memory
   { let saved = null;
