@@ -418,16 +418,25 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
   const top = tiles[0], aft = tiles[aftI];
   const movers = tiles.filter(f => f !== aft);
 
-  // ---- core: the AEPEC, a Dyson shell round a small singularity ----
-  // The outer shell again at CORE_S scale. A collector plate on each of the 20 hexagons, almost edge to edge, looking
-  // inward at the singularity; the 12 pentagons left open, as the outer shell's are, so
-  // the inside shows. At the centre, held by nothing, the containment: a small faceted body round the singularity itself.
+  // ---- core: the AEPEC, a closed vessel round a small extraplanar singularity ----
+  // The outer shell again at CORE_S scale, and solid: a collector plate on each of the 20 hexagons, mitred so each
+  // bears on its three neighbours along the whole shared edge, with a locked hinge barrel on every one of the 30 seams.
+  // Hinged on every seam, a closed shell cannot move, so the spine and mast bolt to it as to one piece. The 12
+  // pentagons stand open, as the outer shell's do, so the inside shows. The plates look inward and hold the singularity
+  // at the centre between them; it touches nothing.
   (function(){
     const items = [], put = v => v.clone().multiplyScalar(CORE_S).setZ(v.z*CORE_S + Z_CORE), one = new V3(1, 1, 1);
-    tiles.forEach(f => {
-      const plate = new T.Matrix4().compose(put(f.c), f.qs, one);
-      items.push([hexPrism(A*CORE_S*0.96, CORE_T), plate]); });   // collector plate, almost edge to edge with its neighbours
-    items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // containment
+    const d = CORE_S*tiles[0].c.length(), out = 1 + CORE_T/(2*d), inn = 1 - CORE_T/(2*d), zAx = new V3(0, 0, 1);
+    const plateGeo = new T.CylinderGeometry(A*CORE_S*out, A*CORE_S*inn, CORE_T, 6, 1)
+      .applyMatrix4(new T.Matrix4().makeBasis(new V3(0,1,0), new V3(0,0,1), new V3(1,0,0)));   // as hexPrism, wide end out
+    tiles.forEach(f => items.push([plateGeo, new T.Matrix4().compose(put(f.c), f.qs, one)]));   // collector plate, mitred to its neighbours
+    const barrel = new T.CylinderGeometry(0.007, 0.007, A*CORE_S*0.4, 6, 1);                    // seam lock: a hinge barrel along the seam, axis on y
+    for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++){
+      const sh = tiles[i].verts.filter(v => tiles[j].verts.some(x => x.distanceTo(v) < 1e-4)); if (sh.length !== 2) continue;
+      const mid = sh[0].clone().add(sh[1]).multiplyScalar(0.5), y = sh[1].clone().sub(sh[0]).normalize(), z = mid.clone().normalize(), x = y.clone().cross(z);
+      const m = new T.Matrix4().makeBasis(x, y, z).setPosition(mid.multiplyScalar(CORE_S*out).setZ(mid.z + Z_CORE));
+      items.push([barrel, m, 40]); }
+    items.push([new T.IcosahedronGeometry(0.09, 0), new T.Matrix4().makeTranslation(0, 0, Z_CORE), 1]);   // the singularity's bound
     lump('core', 'Core', items);
   })();
 
@@ -805,7 +814,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
     ['web',   'Port webs: spokes and ball joints', 'Each horn hangs at the centre of its gap in the shell on hollow 10 mm spokes, a pair from the front and back of each frame corner round the open cell to the front and back of a corner of its face. The spokes telescope, and end in cannulated ball joints that swivel and seal, so the optical fibre inside runs through them into the frames. Every spoke is a signal path, so each horn has several ways home.'],
     ['vib',   'Horn A: vibrometry ×6', 'A 10 GHz receive array of its own: a face on a scaled body, with a spoke ear on each corner of the face that a spoke lands on. Read the hull echo timing for heartbeat and breath.'],
     ['harm',  'Horn B: harmonic ×6', 'A 20 GHz receive array, smaller, interleaved with the others. Listen for the second-harmonic junction echo. Its scales lie back along the body and shed its heat to open space; the spokes carry only fibre.'],
-    ['core',  'AEPEC core', 'A Dyson shell round a small singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons look inward, almost edge to edge; the 12 pentagons stand open, and the containment floats at the centre.'],
+    ['core',  'AEPEC core', 'A closed vessel round a small extraplanar singularity: the outer shell again at 24% scale. Collector plates on the 20 hexagons bear on each other edge to edge, with a locked hinge on each of the 30 seams, so the vessel is one rigid piece and the spine and mast bolt straight to it. The plates look inward and hold the singularity at the centre, weightless and touching nothing. The 12 pentagons stand open. Unlock the seams with a tool and the vessel unfolds for service, as the shell does.'],
     ['shield', 'Shadow shield', 'One flat disc on the mast, midway between the core and the processors, which sit in its shadow.'],
     ['dsp',   'Processor cluster', 'The computer, an open cage round the mast where every fibre comes home: eighteen nodes on three tiers, working in parallel on nineteen tiles and twelve horns at once. Beamforming, and digitising and analysing what the horns hear.'],
     ['cap',   'Capacitor bank', 'Six banded cells round the spine, in a cage of rails with a bus deck at each end. The core is small and only trickles power; the cells store it over days and the array spends it in one hit. If they can no longer fill, the craft never opens.'],
